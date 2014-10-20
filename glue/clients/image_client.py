@@ -436,6 +436,12 @@ class ImageClient(VizClient):
         subset_state.xatt = x
         subset_state.yatt = y
         subset_state.roi = PolygonalROI(xroi, yroi)
+
+        # Select only in this slice
+        zatt = self.display_data.get_pixel_component_id(self._slice_ori)
+        subset = zatt == self.slice_ind
+        subset_state = subset_state & subset
+
         mode = EditSubsetMode()
         with defer(self.axes.figure.canvas, 'draw'):
             mode.update(self.data, subset_state, focus_data=self.display_data)
