@@ -5,13 +5,13 @@ from __future__ import absolute_import, division, print_function
 import numpy as np
 from mock import MagicMock
 
-from ..image_widget import ImageWidget
+from ..qt_widget import ImageWidget
 
 from .... import core
 from ....core.tests.test_state import TestApplication
-from ...glue_application import GlueApplication
+from ....qt.glue_application import GlueApplication
 
-from . import simple_session
+from ....qt.widgets.tests import simple_session
 
 import os
 os.environ['GLUE_TESTING'] = 'True'
@@ -141,7 +141,7 @@ class TestImageWidget(_TestImageWidgetBase):
         self.widget.add_data(self.im)
         att = self.widget.attribute
         intensity = self.im[att][1, 0]
-        x, y = self.widget.client.axes.transData.transform([0.5, 1.5])
+        x, y = self.widget.client.axes.transData.transform([(0.5, 1.5)])[0]
         assert self.widget._intensity_label(x, y) == 'data: %s' % intensity
 
     def test_paint(self):

@@ -5,11 +5,11 @@ from time import time
 
 import numpy as np
 
-from ..core.exceptions import IncompatibleAttribute
-from ..core.util import Pointer, view_shape, stack_view, split_component_view, color2rgb
+from ...core.exceptions import IncompatibleAttribute
+from ...core.util import Pointer, view_shape, stack_view, split_component_view, color2rgb
 
-from .image_client import ImageClient
-from .layer_artist import (LayerArtistBase,
+from ..image.client import ImageClient
+from ...clients.layer_artist import (LayerArtistBase,
                            ImageLayerBase, SubsetImageLayerBase)
 
 from ginga.util import wcsmod

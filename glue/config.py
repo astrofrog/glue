@@ -335,7 +335,7 @@ class ToolRegistry(Registry):
 
         from .plugins.pv_slicer import PVSlicerTool
         from .plugins.spectrum_tool import SpectrumTool
-        from .qt.widgets.image_widget import ImageWidget
+        from .viewers.image.qt_widget import ImageWidget
 
         return [(SpectrumTool, ImageWidget), (PVSlicerTool, ImageWidget)]
 
