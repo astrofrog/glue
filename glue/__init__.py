@@ -123,7 +123,7 @@ env = load_configuration()
 
 from .qglue import qglue
 
-
+from .plugins.vtk import vtk_qt_widget
 from .version import __version__
 
 def test(no_optional_skip=False):
