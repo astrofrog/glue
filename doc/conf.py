@@ -301,6 +301,11 @@ nitpick_ignore = [('py:class', 'object'), ('py:class', 'str'),
               ]
 
 
+# Set matplotlib backend before we import glue otherwise a warning will be
+# raised that the backend is already set.
+import matplotlib
+matplotlib.use('Agg')
+
 # coax Sphinx into treating descriptors as attributes
 # see https://bitbucket.org/birkenfeld/sphinx/issue/1254/#comment-7587063
 from glue.qt.widget_properties import WidgetProperty
