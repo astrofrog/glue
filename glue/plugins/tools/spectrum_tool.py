@@ -33,6 +33,13 @@ from ...qt.decorators import messagebox_on_error
 from ...utils import drop_axis
 
 
+def load_spectrum_tool_plugin():
+    from ...logger import logger
+    from ...config import tool_registry
+    from ...qt.widgets import ImageWidget
+    tool_registry.add(SpectrumTool, widget_cls=ImageWidget)
+
+
 class Extractor(object):
     # Warning:
     # Coordinate conversion is not well-defined if pix2world is not

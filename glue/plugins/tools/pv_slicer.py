@@ -4,6 +4,21 @@ from ...qt.widgets.image_widget import StandaloneImageWidget
 from ...qt.widgets.mpl_widget import defer_draw
 
 
+def load_pv_slicer_plugin():
+    from ...logger import logger
+    try:
+        # Note: for now this works, but if we de-bundle in future, it should
+        # be updated
+        from ...external import pvextractor
+    except ImportError:
+        logger.info("Could not load pvextractor plugin, since pvextractor package is required")
+    else:
+        from ...config import tool_registry
+        from ...qt.widgets import ImageWidget
+        tool_registry.add(PVSlicerTool, widget_cls=ImageWidget)
+        logger.info("Loaded pv slicer plugin")
+
+
 class PVSlicerTool(object):
 
     def __init__(self, widget=None):

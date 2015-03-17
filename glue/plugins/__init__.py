@@ -9,6 +9,12 @@ def load_all_plugins():
     from .coordinate_helpers import load_coordinate_helpers_plugin
     load_coordinate_helpers_plugin()
 
+    from .tools.pv_slicer import load_pv_slicer_plugin
+    load_pv_slicer_plugin()
+
+    from .tools.spectrum_tool import load_spectrum_tool_plugin
+    load_spectrum_tool_plugin()
+
     from . import export_d3po
 
     from . import export_plotly
