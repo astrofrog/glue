@@ -5,7 +5,7 @@ import logging
 import numpy as np
 
 
-__all__ = ['Coordinates', 'WCSCoordinates']
+__all__ = ['Coordinates', 'WCSCoordinates', 'LUTCoordinates']
 
 
 class Coordinates(object):
@@ -42,6 +42,71 @@ class Coordinates(object):
     def __setgluestate__(cls, rec, context):
         return cls()
 
+class LUTCoordinates(Coordinates):
+    '''
+    Allows the use of lookup tables to describe axes in a dataset.
+    This class assumes that the axes are independent.
+    '''
+
+    def __init__(self, *axes):
+        '''initialize a LUTCoordinates object given a sequence of (label, array)
+        types
+
+        Make sure that the arrays representing the axes are in the right order,
+        or you'll have a bad time.
+        '''
+        super(LUTCoordinates, self).__init__()
+
+        self._naxes = len(axes)
+        if self._naxes < 1:
+            raise ValueError('should have at least one lookup table axis')
+        
+        if len(axes[0]) != 2:
+            raise ValueError('axis spec should have a label and an array')
+
+        # i'm not sure why the labels and axes have to be inversed...
+        self._labels = [ax[0] for ax in axes][::-1]
+        self._axes = [ax[1] for ax in axes]
+
+    def pixel2world(self, *pixels):
+        '''
+        Convert pixel to lookup space. This transformation is one to one.
+        '''
+        if len(pixels) != self._naxes:
+            raise ValueError('not enough coordinates to perform lookup')
+        
+        arrs = [np.asarray(p, dtype=int) for p in pixels]
+
+        for i, x in enumerate(arrs):
+            np.clip(x, 0, self._axes[i].shape[0]-1, out=x)
+        
+        result = []
+        for i in range(self._naxes):
+            result.append(self._axes[i][arrs[i]])
+
+        return result
+    
+    def world2pixel(self, *worlds):
+        '''
+        Convert lookup space to world space. This finds the nearest pixels
+        along each dimension. This is won't be the geometric nearest neighbor.
+
+        XXX: Untested!
+        '''
+        if len(worlds) != self._naxes:
+            raise ValueError('not enough coordinates to perform lookup')
+
+        arrs = [np.asarray(w, dtype=float) for w in worlds]
+        result = []
+
+        for i in range(self._naxes):
+            tmp = np.tile(self._axes[i], (len(arrs[i]), 1))
+            result.append(np.argmin(np.abs(tmp - arrs[i]), axis=1))
+
+        return result
+
+    def axis_label(self, axis):
+        return self._labels[axis]
 
 class WCSCoordinates(Coordinates):
 
