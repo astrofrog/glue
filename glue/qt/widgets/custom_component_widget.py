@@ -2,7 +2,7 @@ from __future__ import absolute_import, division, print_function
 
 import re
 
-from glue.external.qt import QtGui
+from glue.external.qt import (QtGui, QtCore)
 from glue.core import parse
 from glue import core
 from glue.qt.qtutil import load_ui
@@ -77,7 +77,7 @@ class ColorizedCompletionTextEdit(CompletionTextEdit):
 
         tc.setPosition(pos)
         self.setTextCursor(tc)
-        self.setAlignment(Qt.AlignCenter)
+        self.setAlignment(QtCore.Qt.AlignCenter)
 
 
 class CustomComponentWidget(object):
@@ -94,7 +94,7 @@ class CustomComponentWidget(object):
         # because we want to use a custom widget that supports auto-complete.
         self.ui.expression = ColorizedCompletionTextEdit()
         self.ui.verticalLayout_3.addWidget(self.ui.expression)
-        self.ui.expression.setAlignment(Qt.AlignCenter)
+        self.ui.expression.setAlignment(QtCore.Qt.AlignCenter)
         self.ui.expression.setObjectName("expression")
         self.ui.expression.setToolTip("Define a new component. You can either "
                                       "type out the full name of a component\n"
