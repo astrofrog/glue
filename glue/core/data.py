@@ -61,7 +61,7 @@ class Data(object):
     See also: :ref:`data_tutorial`
     """
 
-    def __init__(self, label="", **kwargs):
+    def __init__(self, label="", coords=None, **kwargs):
         """
 
         :param label: label for data
@@ -70,7 +70,10 @@ class Data(object):
         Extra array-like keywords are extracted into components
         """
         # Coordinate conversion object
-        self.coords = Coordinates()
+        if coords is None:
+            self.coords = Coordinates()
+        else:
+            self.coords = coords
         self._shape = ()
 
         # Components
