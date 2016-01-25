@@ -98,7 +98,7 @@ __all__ = ["AttributeInfo", "ViewerState", "UserDefinedFunction",
            "CustomViewerMeta", "CustomSubsetState", "FrozenSettings",
            "CustomViewer", "CustomArtist", "CustomClient", "CustomWidgetBase",
            "FormDescriptor", "FormElement", "NumberElement", "LabeledSlider",
-           "BoolElement", "FixedComponent", "ComponenentElement",
+           "BoolElement", "FixedComponent", "ComponentElement",
            "ChoiceElement"]
 
 
@@ -1339,7 +1339,7 @@ class FixedComponent(FormElement):
         self.params = value
 
 
-class ComponenentElement(FormElement, core.hub.HubListener):
+class ComponentElement(FormElement, core.hub.HubListener):
 
     """
     A dropdown selector to choose a component
