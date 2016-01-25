@@ -64,7 +64,7 @@ class LUTCoordinates(Coordinates):
         if len(axes[0]) != 2:
             raise ValueError('axis spec should have a label and an array')
 
-        self._labels = [ax[0] for ax in axes]
+        self._labels = [ax[0] for ax in axes][::-1]
         self._axes = [ax[1] for ax in axes]
 
     def pixel2world(self, *pixels):

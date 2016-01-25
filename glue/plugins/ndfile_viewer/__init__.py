@@ -36,14 +36,13 @@ class ContourPlot(CustomViewer):
 
     def plot_data(self, axes, x, y, z, nlevels):
         try:
-            # must reverse labels I guess?
             axes.set_xlabel(x.id.label)
             axes.set_ylabel(y.id.label)
 
-            axes.contourf(x, y, z, nlevels)
-            axes.contour(x, y, z, nlevels)
+            axes.contourf(x, y, z, nlevels, origin='image')
+            axes.contour(x, y, z, nlevels, origin='image')
             axes.relim()
-        except AttributeError:
+        except AttributeError as e:
             pass
 
 def mock_data():
@@ -76,7 +75,9 @@ def mock_data():
             population_time) 
     image = np.outer(kinetics, spectrum)
 
-    c = [('population time', population_time), ('wavelength', wavelength)]
+    print("Image shape: ", image.shape)
+    c = [('population time', population_time), ('wavelength',
+        wavelength)][::-1]
     coords = LUTCoordinates(*c)
     data = Data(label='Mock Kinetics', kinetics=image, coords=coords)
     return data
