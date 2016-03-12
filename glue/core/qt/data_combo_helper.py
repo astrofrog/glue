@@ -5,6 +5,7 @@ from glue.external.qt import QtGui
 from glue.external.qt.QtCore import Qt
 from glue.core.hub import HubListener
 from glue.core.message import (ComponentsChangedMessage,
+                               ComponentIDRenamedMessage,
                                DataCollectionAddMessage,
                                DataCollectionDeleteMessage,
                                DataUpdateMessage)
@@ -161,12 +162,22 @@ class ComponentIDComboHelper(HubListener):
         hub.subscribe(self, ComponentsChangedMessage,
                       handler=nonpartial(self.refresh),
                       filter=lambda msg: msg.data in self._data)
+        hub.subscribe(self, ComponentIDRenamedMessage,
+                      handler=nonpartial(self.refresh),
+                      filter=lambda msg: msg.component_id in self.component_ids)
         hub.subscribe(self, DataCollectionDeleteMessage,
                       handler=lambda msg: self.remove(msg.data),
                       filter=lambda msg: msg.sender is self._data_collection)
 
     def unregister(self, hub):
         hub.unsubscribe_all(self)
+  
+    @property
+    def component_ids(self):
+        component_ids = set()
+        for data in self._data:
+            component_ids.update(data.visible_components)
+        return component_ids
 
 
 class BaseDataComboHelper(HubListener):
@@ -258,7 +269,6 @@ class ManualDataComboHelper(BaseDataComboHelper):
         self.refresh()
 
     def register_to_hub(self, hub):
-
         super(ManualDataComboHelper, self).register_to_hub(hub)
 
         hub.subscribe(self, DataUpdateMessage,
@@ -266,7 +276,6 @@ class ManualDataComboHelper(BaseDataComboHelper):
                       filter=lambda msg: msg.sender in self._datasets)
         hub.subscribe(self, DataCollectionDeleteMessage,
                       handler=lambda msg: self.remove(msg.data),
-                      filter=lambda msg: msg.sender is self._data_collection)
 
 
 class DataCollectionComboHelper(BaseDataComboHelper):

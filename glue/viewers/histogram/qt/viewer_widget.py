@@ -11,13 +11,14 @@ from glue.viewers.common.qt.toolbar import GlueToolbar
 from glue.viewers.common.qt.mouse_mode import HRangeMode
 from glue.utils.qt import load_ui
 from glue.utils.qt.widget_properties import (connect_int_spin, ButtonProperty,
-                                       FloatLineProperty, connect_float_edit,
-                                       ValueProperty, connect_bool_button)
+                                             FloatLineProperty, connect_float_edit,
+                                             ValueProperty, connect_bool_button,
+                                             CurrentComboProperty)
 from glue.viewers.common.qt.data_viewer import DataViewer
 from glue.viewers.common.qt.mpl_widget import MplWidget, defer_draw
 from glue.viewers.histogram.qt.layer_style_widget import HistogramLayerStyleWidget
 from glue.utils.array import pretty_number
-
+from glue.core.qt.data_combo_helper import ComponentIDComboHelper
 
 __all__ = ['HistogramWidget']
 
@@ -35,6 +36,7 @@ class HistogramWidget(DataViewer):
         'component xlog ylog normed cumulative autoscale xmin xmax nbins'.split(
         )
 
+    component = CurrentComboProperty('ui.attributeCombo', 'Component')
     xmin = FloatLineProperty('ui.xmin', 'Minimum value')
     xmax = FloatLineProperty('ui.xmax', 'Maximum value')
     normed = ButtonProperty('ui.normalized_box', 'Normalized?')
@@ -53,8 +55,13 @@ class HistogramWidget(DataViewer):
         self.central_widget = MplWidget()
         self.setCentralWidget(self.central_widget)
         self.option_widget = QtGui.QWidget()
+
         self.ui = load_ui('options_widget.ui', self.option_widget,
                           directory=os.path.dirname(__file__))
+
+        # Set up helper for attribute box
+        self._attribute_helper = ComponentIDComboHelper(self.ui.attributeCombo, self._data)
+
         self._tweak_geometry()
         self.client = HistogramClient(self._data,
                                       self.central_widget.canvas.fig,
@@ -117,77 +124,6 @@ class HistogramWidget(DataViewer):
         return [rect]
 
     @defer_draw
-    def _update_attributes(self):
-        """Repopulate the combo box that selects the quantity to plot"""
-        combo = self.ui.attributeCombo
-        component = self.component
-        new = self.client.component or component
-
-        combo.blockSignals(True)
-        combo.clear()
-
-        # implementation note:
-        # PySide doesn't robustly store python objects with setData
-        # use _hash(x) instead
-        model = QtGui.QStandardItemModel()
-        data_ids = set(_hash(d) for d in self._data)
-        self._component_hashes = dict((_hash(c), c) for d in self._data
-                                      for c in d.components)
-
-        found = False
-        for d in self._data:
-            if d not in self._layer_artist_container:
-                continue
-            item = QtGui.QStandardItem(d.label)
-            item.setData(_hash(d), role=Qt.UserRole)
-            assert item.data(Qt.UserRole) == _hash(d)
-            item.setFlags(item.flags() & ~Qt.ItemIsEnabled)
-            model.appendRow(item)
-            for c in d.visible_components:
-                if (not d.get_component(c).categorical and
-                        not d.get_component(c).numeric):
-                    continue
-                if c is new:
-                    found = True
-                item = QtGui.QStandardItem(c.label)
-                item.setData(_hash(c), role=Qt.UserRole)
-                model.appendRow(item)
-        combo.setModel(model)
-
-        # separators below data items
-        for i in range(combo.count()):
-            if combo.itemData(i) in data_ids:
-                combo.insertSeparator(i + 1)
-
-        combo.blockSignals(False)
-
-        if found:
-            self.component = new
-        else:
-            combo.setCurrentIndex(2)  # skip first data + separator
-        self._set_attribute_from_combo()
-
-    @property
-    def component(self):
-        combo = self.ui.attributeCombo
-        index = combo.currentIndex()
-        return self._component_hashes.get(combo.itemData(index), None)
-
-    @component.setter
-    def component(self, component):
-        combo = self.ui.attributeCombo
-        if combo.count() == 0:  # cold start problem, when restoring
-            self._update_attributes()
-
-        # combo.findData doesn't seem to work robustly
-        for i in range(combo.count()):
-            data = combo.itemData(i)
-            if data == _hash(component):
-                combo.setCurrentIndex(i)
-                return
-        raise IndexError("Component not present: %s" % component)
-
-    @defer_draw
     def _set_attribute_from_combo(self, *args):
         if self.component is not None:
             for d in self._data:
@@ -219,15 +155,11 @@ class HistogramWidget(DataViewer):
             return False
 
         self.client.add_layer(data)
-        self._update_attributes()
+        self._attribute_helper.append(data)
 
         return True
 
     def add_subset(self, subset):
-        pass
-
-    def _remove_data(self, data):
-        """ Remove data item from the combo box """
         pass
 
     def data_present(self, data):
@@ -237,22 +169,10 @@ class HistogramWidget(DataViewer):
         super(HistogramWidget, self).register_to_hub(hub)
         self.client.register_to_hub(hub)
 
-        hub.subscribe(self,
-                      msg.DataCollectionDeleteMessage,
-                      handler=lambda x: self._remove_data(x.data))
-
-        hub.subscribe(self,
-                      msg.DataUpdateMessage,
-                      handler=lambda *args: self._update_labels())
-
-        hub.subscribe(self,
-                      msg.ComponentsChangedMessage,
-                      handler=lambda x: self._update_attributes())
-
     def unregister(self, hub):
         super(HistogramWidget, self).unregister(hub)
         self.client.unregister(hub)
-        hub.unsubscribe_all(self)
+        self._attribute_helper.unregister(hub)
 
     @property
     def window_title(self):
