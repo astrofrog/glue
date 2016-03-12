@@ -56,6 +56,10 @@ class HistogramLayerArtist(MatplotlibLayerArtist, HistogramLayerBase):
 
     def _calculate_histogram(self):
         """Recalculate the histogram, creating new patches"""
+
+        if self.att is None:
+            return False
+
         self.clear()
         try:
             data = self.layer[self.att].ravel()

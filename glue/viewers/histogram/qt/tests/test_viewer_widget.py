@@ -66,7 +66,6 @@ class TestHistogramWidget(object):
         self.collect.append(d2)
         self.widget.add_data(d2)
         assert self.widget.client.layer_present(d2)
-        print(list(self.widget.client._artists))
 
         self.assert_component_integrity()
 

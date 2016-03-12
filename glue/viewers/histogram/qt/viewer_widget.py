@@ -13,7 +13,7 @@ from glue.utils.qt import load_ui
 from glue.utils.qt.widget_properties import (connect_int_spin, ButtonProperty,
                                              FloatLineProperty, connect_float_edit,
                                              ValueProperty, connect_bool_button,
-                                             CurrentComboProperty)
+                                             CurrentComboProperty, connect_current_combo)
 from glue.viewers.common.qt.data_viewer import DataViewer
 from glue.viewers.common.qt.mpl_widget import MplWidget, defer_draw
 from glue.viewers.histogram.qt.layer_style_widget import HistogramLayerStyleWidget
@@ -94,7 +94,9 @@ class HistogramWidget(DataViewer):
         ui = self.ui
         cl = self.client
 
-        ui.attributeCombo.currentIndexChanged.connect(self._set_attribute_from_combo)
+        ui.attributeCombo.currentIndexChanged.connect(self._update_buttons)
+
+        connect_current_combo(cl, 'component', ui.attributeCombo)
 
         ui.normalized_box.toggled.connect(partial(setattr, cl, 'normed'))
         ui.autoscale_box.toggled.connect(partial(setattr, cl, 'autoscale'))
@@ -124,7 +126,7 @@ class HistogramWidget(DataViewer):
         return [rect]
 
     @defer_draw
-    def _set_attribute_from_combo(self, *args):
+    def _update_buttons(self, *args):
         if self.component is not None:
             for d in self._data:
                 try:
@@ -134,13 +136,10 @@ class HistogramWidget(DataViewer):
                 else:
                     break
             if component.categorical:
-                if self.ui.xlog_box.isEnabled():
-                    self.ui.xlog_box.setEnabled(False)
-                    self.xlog = False
+                self.ui.xlog_box.setEnabled(False)
+                self.xlog = False
             else:
-                if not self.ui.xlog_box.isEnabled():
-                    self.ui.xlog_box.setEnabled(True)
-        self.client.set_component(self.component)
+                self.ui.xlog_box.setEnabled(True)
         self.update_window_title()
 
     @defer_draw
@@ -185,7 +184,6 @@ class HistogramWidget(DataViewer):
 
     def _update_labels(self):
         self.update_window_title()
-        self._update_attributes()
 
     def __str__(self):
         return "Histogram Widget"

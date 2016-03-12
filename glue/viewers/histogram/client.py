@@ -12,7 +12,8 @@ from glue.core.roi import RangeROI
 from glue.core.state import lookup_class_with_patches
 from glue.core.layer_artist import LayerArtistContainer
 from glue.core.util import update_ticks, visible_limits
-
+from glue.utils import nonpartial
+from glue.external.echo import add_callback
 from glue.viewers.common.viz_client import init_mpl
 
 from .layer_artist import HistogramLayerArtist
@@ -23,8 +24,8 @@ class UpdateProperty(CallbackProperty):
     Descriptor that calls client's sync_all() method when changed
     """
 
-    def __init__(self, default, relim=False):
-        super(UpdateProperty, self).__init__(default)
+    def __init__(self, default=None, relim=False):
+        super(UpdateProperty, self).__init__(default=None)
         self.relim = relim
 
     def __set__(self, instance, value):
@@ -51,6 +52,7 @@ class HistogramClient(Client):
     A client class to display histograms
     """
 
+    component = UpdateProperty()
     normed = UpdateProperty(False)
     cumulative = UpdateProperty(False)
     autoscale = UpdateProperty(True)
@@ -66,12 +68,13 @@ class HistogramClient(Client):
 
         self._artists = layer_artist_container or LayerArtistContainer()
         self._figure, self._axes = init_mpl(figure=figure, axes=None)
-        self._component = None
         self._saved_nbins = None
         self._xlim_cache = {}
         self._xlog_cache = {}
         self._sync_enabled = True
         self._xlog_curr = False
+
+        add_callback(self, 'component', nonpartial(self._redefine_plotted_component))
 
     @property
     def bins(self):
@@ -83,7 +86,10 @@ class HistogramClient(Client):
         for art in self._artists:
             if not isinstance(art, HistogramLayerArtist):
                 continue
-            return art.x
+            # If an artist has incompatible attributes, art.x will be an
+            # empty list, so we should skip this.
+            if len(art.x) > 0:
+                return art.x
 
     @property
     def axes(self):
@@ -260,7 +266,7 @@ class HistogramClient(Client):
             a.ylog = self.ylog
             a.cumulative = self.cumulative
             a.normed = self.normed
-            a.att = self._component
+            a.att = self.component
             a.update() if not force else a.force_update()
 
     def sync_all(self, force=False):
@@ -305,15 +311,7 @@ class HistogramClient(Client):
 
         self._redraw()
 
-    @property
-    def component(self):
-        return self._component
-
-    @component.setter
-    def component(self, value):
-        self.set_component(value)
-
-    def set_component(self, component):
+    def _redefine_plotted_component(self):
         """
         Redefine which component gets plotted
 
@@ -323,7 +321,7 @@ class HistogramClient(Client):
             The new component to plot
         """
 
-        if self._component is component:
+        if self.component is None:
             return
 
         self._sync_enabled = False
@@ -340,8 +338,7 @@ class HistogramClient(Client):
         prev = comp_obj()
         old = self.nbins
 
-        first_add = self._component is None
-        self._component = component
+        first_add = self.nbins == 1
         cur = comp_obj()
 
         if self.component in self._xlog_cache:
@@ -396,7 +393,7 @@ class HistogramClient(Client):
 
     def _on_component_replaced(self, msg):
         if self.component is msg.old:
-            self.set_component(msg.new)
+            self.component = msg.new
 
     def _update_data(self, message):
         self.sync_all()
