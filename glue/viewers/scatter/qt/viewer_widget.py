@@ -4,7 +4,6 @@ import os
 
 from glue.external.qt.QtCore import Qt
 from glue.external.qt import QtGui
-from glue import core
 from glue.viewers.scatter.client import ScatterClient
 from glue.viewers.common.qt.toolbar import GlueToolbar
 from glue.viewers.common.qt.mouse_mode import (RectangleMode, CircleMode,
@@ -17,6 +16,7 @@ from glue.utils import nonpartial, cache_axes
 from glue.utils.qt.widget_properties import (ButtonProperty, FloatLineProperty,
                                              CurrentComboProperty,
                                              connect_bool_button, connect_float_edit)
+from glue.core.qt.data_combo_helper import ComponentIDComboHelper
 
 __all__ = ['ScatterWidget']
 
@@ -59,6 +59,10 @@ class ScatterWidget(DataViewer):
         self.option_widget = QtGui.QWidget()
         self.ui = load_ui('options_widget.ui', self.option_widget,
                           directory=os.path.dirname(__file__))
+
+        # Set up helper for attribute box
+        self._x_attribute_helper = ComponentIDComboHelper(self.ui.xAxisComboBox, self._data)
+        self._y_attribute_helper = ComponentIDComboHelper(self.ui.yAxisComboBox, self._data)
 
         self._tweak_geometry()
 
@@ -122,54 +126,8 @@ class ScatterWidget(DataViewer):
         poly = PolyMode(axes, roi_callback=apply_mode)
         return [rect, xra, yra, circ, poly]
 
-    @defer_draw
-    def _update_combos(self):
-        """ Update contents of combo boxes """
-
-        # have to be careful here, since client and/or widget
-        # are potentially out of sync
-
-        layer_ids = []
-
-        # show hidden attributes if needed
-        if ((self.client.xatt and self.client.xatt.hidden) or
-                (self.client.yatt and self.client.yatt.hidden)):
-            self.hidden = True
-
-        # determine which components to put in combos
-        for l in self.client.data:
-            if not self.client.is_layer_present(l):
-                continue
-            for lid in self.client.plottable_attributes(
-                    l, show_hidden=self.hidden):
-                if lid not in layer_ids:
-                    layer_ids.append(lid)
-
-        oldx = self.xatt
-        oldy = self.yatt
-        newx = self.client.xatt or oldx
-        newy = self.client.yatt or oldy
-
-        for combo, target in zip([self.ui.xAxisComboBox, self.ui.yAxisComboBox],
-                                 [newx, newy]):
-            combo.blockSignals(True)
-            combo.clear()
-
-            if not layer_ids:  # empty component list
-                continue
-
-            # populate
-            for lid in layer_ids:
-                combo.addItem(lid.label, userData=lid)
-
-            idx = layer_ids.index(target) if target in layer_ids else 0
-            combo.setCurrentIndex(idx)
-
-            combo.blockSignals(False)
-
-        # ensure client and widget synced
-        self.client.xatt = self.xatt
-        self.client.lyatt = self.yatt
+    # TODO: make sure that client and viewer widget can't actually be out of
+    # sync by using callback properties.
 
     @defer_draw
     def add_data(self, data):
@@ -186,9 +144,12 @@ class ScatterWidget(DataViewer):
         first_layer = self.client.layer_count == 0
 
         self.client.add_data(data)
-        self._update_combos()
+
+        self._x_attribute_helper.append(data)
+        self._y_attribute_helper.append(data)
 
         if first_layer:  # forces both x and y axes to be rescaled
+
             self.update_xatt(None)
             self.update_yatt(None)
 
@@ -235,12 +196,6 @@ class ScatterWidget(DataViewer):
     def register_to_hub(self, hub):
         super(ScatterWidget, self).register_to_hub(hub)
         self.client.register_to_hub(hub)
-        hub.subscribe(self, core.message.DataUpdateMessage,
-                      nonpartial(self._sync_labels))
-        hub.subscribe(self, core.message.ComponentsChangedMessage,
-                      nonpartial(self._update_combos))
-        hub.subscribe(self, core.message.ComponentReplacedMessage,
-                      self._on_component_replace)
 
     def _on_component_replace(self, msg):
         # let client update its state first
