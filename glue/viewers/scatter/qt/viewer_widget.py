@@ -22,6 +22,14 @@ __all__ = ['ScatterWidget']
 
 WARN_SLOW = 1000000  # max number of points which render quickly
 
+# TODO: split out things to do with options widget and caching into
+# options_widget.py, similarly to what we did in 3D
+
+# TODO: finish up attribute limits helper since it can be used here. Need to add
+# a log option.
+
+# TODO: use similar layout as for 3D scatter plot viewer and add log option to
+# 3D scatter plot viewer.
 
 class ScatterWidget(DataViewer):
 
