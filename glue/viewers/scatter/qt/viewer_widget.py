@@ -1,22 +1,20 @@
 from __future__ import absolute_import, division, print_function
 
-import os
-
 from glue.external.qt.QtCore import Qt
-from glue.external.qt import QtGui
-from glue.viewers.scatter.client import ScatterClient
+# from glue.viewers.scatter.client import ScatterClient
 from glue.viewers.common.qt.toolbar import GlueToolbar
 from glue.viewers.common.qt.mouse_mode import (RectangleMode, CircleMode,
                                 PolyMode, HRangeMode, VRangeMode)
-from glue.utils.qt import load_ui
 from glue.viewers.common.qt.data_viewer import DataViewer
 from glue.viewers.common.qt.mpl_widget import MplWidget, defer_draw
+from glue.viewers.scatter.qt.options_widget import ScatterOptionsWidget
 from glue.viewers.scatter.qt.layer_style_widget import ScatterLayerStyleWidget
 from glue.utils import nonpartial, cache_axes
 from glue.utils.qt.widget_properties import (ButtonProperty, FloatLineProperty,
                                              CurrentComboProperty,
                                              connect_bool_button, connect_float_edit)
-from glue.core.qt.data_combo_helper import ComponentIDComboHelper
+from glue.viewers.common.viz_client import init_mpl
+from ..layer_artist import ScatterLayerArtist
 
 __all__ = ['ScatterWidget']
 
@@ -31,6 +29,22 @@ WARN_SLOW = 1000000  # max number of points which render quickly
 # TODO: use similar layout as for 3D scatter plot viewer and add log option to
 # 3D scatter plot viewer.
 
+# TODO: make sure the two attribute combos don't default to the same attribute,
+# in the options widget.
+
+# TODO: add back window title
+# TODO: add back button for autoscaling
+# TODO: get log scaling to work
+# TODO: add back cache_axis
+# TODO: add back ability to restore viewer
+# TODO: make warning about large data a feature of DataViewer
+# TODO: make it so the MPL canvas is easily replaceable
+
+
+# Matplotlib widget should be in charge of creating axes and have callback
+# properties for xmin/xmax/xlog etc.
+
+
 class ScatterWidget(DataViewer):
 
     """
@@ -38,22 +52,6 @@ class ScatterWidget(DataViewer):
     """
 
     LABEL = "Scatter Plot"
-    _property_set = DataViewer._property_set + \
-        'xlog ylog xflip yflip hidden xatt yatt xmin xmax ymin ymax'.split()
-
-    xlog = ButtonProperty('ui.xLogCheckBox', 'log scaling on x axis?')
-    ylog = ButtonProperty('ui.yLogCheckBox', 'log scaling on y axis?')
-    xflip = ButtonProperty('ui.xFlipCheckBox', 'invert the x axis?')
-    yflip = ButtonProperty('ui.yFlipCheckBox', 'invert the y axis?')
-    xmin = FloatLineProperty('ui.xmin', 'Lower x limit of plot')
-    xmax = FloatLineProperty('ui.xmax', 'Upper x limit of plot')
-    ymin = FloatLineProperty('ui.ymin', 'Lower y limit of plot')
-    ymax = FloatLineProperty('ui.ymax', 'Upper y limit of plot')
-    hidden = ButtonProperty('ui.hidden_attributes', 'Show hidden attributes')
-    xatt = CurrentComboProperty('ui.xAxisComboBox',
-                                'Attribute to plot on x axis')
-    yatt = CurrentComboProperty('ui.yAxisComboBox',
-                                'Attribute to plot on y axis')
 
     _layer_style_widget_cls = ScatterLayerStyleWidget
 
@@ -64,26 +62,62 @@ class ScatterWidget(DataViewer):
         self.central_widget = MplWidget()
         self.setCentralWidget(self.central_widget)
 
-        self.option_widget = QtGui.QWidget()
-        self.ui = load_ui('options_widget.ui', self.option_widget,
-                          directory=os.path.dirname(__file__))
+        figure, axes = init_mpl(figure=self.central_widget.canvas.fig)
 
-        # Set up helper for attribute box
-        self._x_attribute_helper = ComponentIDComboHelper(self.ui.xAxisComboBox, self._data)
-        self._y_attribute_helper = ComponentIDComboHelper(self.ui.yAxisComboBox, self._data)
+        self.figure = figure
+        self._axes = axes
+
+        self._options_widget = ScatterOptionsWidget(data_collection=self._data)
 
         self._tweak_geometry()
-
-        self.client = ScatterClient(self._data,
-                                    self.central_widget.canvas.fig,
-                                    layer_artist_container=self._layer_artist_container)
+        
+        self.client = self
 
         self._connect()
         self.unique_fields = set()
         tb = self.make_toolbar()
-        cache_axes(self.client.axes, tb)
+
+        # cache_axes(self.client.axes, tb)
         self.statusBar().setSizeGripEnabled(False)
         self.setFocusPolicy(Qt.StrongFocus)
+
+    def add_layer(self, data):
+        """
+        Adds a new visual layer to a client, to display either a dataset or a
+        subset.
+
+        Returns the created layer artist
+
+        :param layer: the layer to add
+        :type layer: :class:`~glue.core.data.Data` or :class:`~glue.core.subset.Subset`
+        """
+
+        if data.data not in self._data:
+            raise TypeError("Layer not in data collection")
+
+        if data in self._layer_artist_container:
+            return self._layer_artist_container[data][0]
+
+        layer_artist = ScatterLayerArtist(data, self._axes)
+        self._layer_artist_container.append(layer_artist)
+        layer_artist.update()
+
+        return layer_artist
+
+    def _update_attributes(self):
+        options = self._options_widget.ui
+        for artist in self._layer_artist_container:
+            if options.x_att is not None:
+                artist.xatt = options.x_att[0]
+            if options.y_att is not None:
+                artist.yatt = options.y_att[0]
+        self._update_all_artists()
+
+    def _update_all_artists(self):
+        for artist in self._layer_artist_container:
+            artist.update()
+        if len(self._layer_artist_container) > 0:
+            self._layer_artist_container[0].redraw()
 
     @staticmethod
     def _get_default_tools():
@@ -94,24 +128,27 @@ class ScatterWidget(DataViewer):
         self.resize(self.central_widget.size())
 
     def _connect(self):
-        ui = self.ui
-        cl = self.client
 
-        connect_bool_button(cl, 'xlog', ui.xLogCheckBox)
-        connect_bool_button(cl, 'ylog', ui.yLogCheckBox)
-        connect_bool_button(cl, 'xflip', ui.xFlipCheckBox)
-        connect_bool_button(cl, 'yflip', ui.yFlipCheckBox)
+        options = self._options_widget.ui
 
-        ui.xAxisComboBox.currentIndexChanged.connect(self.update_xatt)
-        ui.yAxisComboBox.currentIndexChanged.connect(self.update_yatt)
-        ui.hidden_attributes.toggled.connect(lambda x: self._update_combos())
-        ui.swapAxes.clicked.connect(nonpartial(self.swap_axes))
-        ui.snapLimits.clicked.connect(cl.snap)
+        options.button_x_log.toggled.connect(nonpartial(self._update_limits))
+        options.button_y_log.toggled.connect(nonpartial(self._update_limits))
+        options.value_x_min.editingFinished.connect(nonpartial(self._update_limits))
+        options.value_x_max.editingFinished.connect(nonpartial(self._update_limits))
+        options.value_y_min.editingFinished.connect(nonpartial(self._update_limits))
+        options.value_y_max.editingFinished.connect(nonpartial(self._update_limits))
 
-        connect_float_edit(cl, 'xmin', ui.xmin)
-        connect_float_edit(cl, 'xmax', ui.xmax)
-        connect_float_edit(cl, 'ymin', ui.ymin)
-        connect_float_edit(cl, 'ymax', ui.ymax)
+        options.combo_x_attribute.currentIndexChanged.connect(nonpartial(self._update_attributes))
+        options.combo_y_attribute.currentIndexChanged.connect(nonpartial(self._update_attributes))
+
+    @defer_draw
+    def _update_limits(self):
+        options = self._options_widget.ui
+        self._axes.set_xlim(options.x_min, options.x_max)
+        self._axes.set_ylim(options.y_min, options.y_max)
+        self._axes.set_xscale('log' if options.x_log else 'linear')
+        self._axes.set_yscale('log' if options.y_log else 'linear')
+        self._update_all_artists()
 
     def make_toolbar(self):
         result = GlueToolbar(self.central_widget.canvas, self,
@@ -121,51 +158,53 @@ class ScatterWidget(DataViewer):
         self.addToolBar(result)
         return result
 
+
+    def apply_mode(self, mode):
+        roi = mode.roi()
+        return self.apply_roi(roi)
+
     def _mouse_modes(self):
-        axes = self.client.axes
+        axes = self._axes
 
-        def apply_mode(mode):
-            return self.apply_roi(mode.roi())
-
-        rect = RectangleMode(axes, roi_callback=apply_mode)
-        xra = HRangeMode(axes, roi_callback=apply_mode)
-        yra = VRangeMode(axes, roi_callback=apply_mode)
-        circ = CircleMode(axes, roi_callback=apply_mode)
-        poly = PolyMode(axes, roi_callback=apply_mode)
+        rect = RectangleMode(axes, roi_callback=self.apply_mode)
+        xra = HRangeMode(axes, roi_callback=self.apply_mode)
+        yra = VRangeMode(axes, roi_callback=self.apply_mode)
+        circ = CircleMode(axes, roi_callback=self.apply_mode)
+        poly = PolyMode(axes, roi_callback=self.apply_mode)
         return [rect, xra, yra, circ, poly]
 
-    # TODO: make sure that client and viewer widget can't actually be out of
-    # sync by using callback properties.
+    def apply_roi(self, roi):
 
+        # every editable subset is updated
+        # using specified ROI
+
+        for x_comp, y_comp in zip(self._get_data_components('x'),
+                                  self._get_data_components('y')):
+                                  
+            subset_state = x_comp.subset_from_roi(self.xatt, roi,
+                                                  other_comp=y_comp,
+                                                  other_att=self.yatt,
+                                                  coord='x')
+            mode = EditSubsetMode()
+            visible = [d for d in self._data if self.is_visible(d)]
+            focus = visible[0] if len(visible) > 0 else None
+            mode.update(self._data, subset_state, focus_data=focus)
+            
     @defer_draw
     def add_data(self, data):
         """Add a new data set to the widget
 
         :returns: True if the addition was expected, False otherwise
         """
-        if self.client.is_layer_present(data):
-            return
+        # if self.client.is_layer_present(data):
+        #     return
 
         if data.size > WARN_SLOW and not self._confirm_large_data(data):
             return False
 
-        first_layer = self.client.layer_count == 0
+        self._options_widget.append(data)
 
-        self.client.add_data(data)
-
-        self._x_attribute_helper.append(data)
-        self._y_attribute_helper.append(data)
-
-        if first_layer:  # forces both x and y axes to be rescaled
-
-            self.update_xatt(None)
-            self.update_yatt(None)
-
-            self.ui.xAxisComboBox.setCurrentIndex(0)
-            if len(data.visible_components) > 1:
-                self.ui.yAxisComboBox.setCurrentIndex(1)
-            else:
-                self.ui.yAxisComboBox.setCurrentIndex(0)
+        self.add_layer(data)
 
         self.update_window_title()
         return True
@@ -176,88 +215,19 @@ class ScatterWidget(DataViewer):
 
         :returns: True if the addition was accepted, False otherwise
         """
-        if self.client.is_layer_present(subset):
-            return
+        # if self.client.is_layer_present(subset):
+        #     return
 
         data = subset.data
         if data.size > WARN_SLOW and not self._confirm_large_data(data):
             return False
 
-        first_layer = self.client.layer_count == 0
+        self._options_widget.append(subset)
 
-        self.client.add_layer(subset)
-        self._update_combos()
+        self.add_layer(subset)
 
-        if first_layer:  # forces both x and y axes to be rescaled
-            self.update_xatt(None)
-            self.update_yatt(None)
-
-            self.ui.xAxisComboBox.setCurrentIndex(0)
-            if len(data.visible_components) > 1:
-                self.ui.yAxisComboBox.setCurrentIndex(1)
-            else:
-                self.ui.yAxisComboBox.setCurrentIndex(0)
-
-        self.update_window_title()
         return True
 
-    def register_to_hub(self, hub):
-        super(ScatterWidget, self).register_to_hub(hub)
-        self.client.register_to_hub(hub)
-
-    def _on_component_replace(self, msg):
-        # let client update its state first
-        self.client._on_component_replace(msg)
-        self._update_combos()
-
-    def unregister(self, hub):
-        super(ScatterWidget, self).unregister(hub)
-        hub.unsubscribe_all(self.client)
-        hub.unsubscribe_all(self)
-
-    @defer_draw
-    def swap_axes(self):
-        xid = self.ui.xAxisComboBox.currentIndex()
-        yid = self.ui.yAxisComboBox.currentIndex()
-        xlog = self.ui.xLogCheckBox.isChecked()
-        ylog = self.ui.yLogCheckBox.isChecked()
-        xflip = self.ui.xFlipCheckBox.isChecked()
-        yflip = self.ui.yFlipCheckBox.isChecked()
-
-        self.ui.xAxisComboBox.setCurrentIndex(yid)
-        self.ui.yAxisComboBox.setCurrentIndex(xid)
-        self.ui.xLogCheckBox.setChecked(ylog)
-        self.ui.yLogCheckBox.setChecked(xlog)
-        self.ui.xFlipCheckBox.setChecked(yflip)
-        self.ui.yFlipCheckBox.setChecked(xflip)
-
-    @defer_draw
-    def update_xatt(self, index):
-        component_id = self.xatt
-        self.client.xatt = component_id
-
-    @defer_draw
-    def update_yatt(self, index):
-        component_id = self.yatt
-        self.client.yatt = component_id
-
-    @property
-    def window_title(self):
-        data = self.client.data
-        label = ', '.join([d.label for d in data if
-                           self.client.is_visible(d)])
-        return label
-
-    def _sync_labels(self):
-        self.update_window_title()
-
     def options_widget(self):
-        return self.option_widget
+        return self._options_widget
 
-    @defer_draw
-    def restore_layers(self, rec, context):
-        self.client.restore_layers(rec, context)
-        self._update_combos()
-        # manually force client attributes to sync
-        self.update_xatt(None)
-        self.update_yatt(None)

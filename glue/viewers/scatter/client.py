@@ -22,7 +22,6 @@ from .layer_artist import ScatterLayerArtist
 
 
 class ScatterClient(Client):
-
     """
     A client class that uses matplotlib to visualize tables as scatter plots.
     """
@@ -32,8 +31,6 @@ class ScatterClient(Client):
     ymax = CallbackProperty(1)
     ylog = CallbackProperty(False)
     xlog = CallbackProperty(False)
-    yflip = CallbackProperty(False)
-    xflip = CallbackProperty(False)
     xatt = CallbackProperty()
     yatt = CallbackProperty()
     jitter = CallbackProperty()
@@ -87,8 +84,6 @@ class ScatterClient(Client):
         add_callback(self, 'xlog', self._set_xlog)
         add_callback(self, 'ylog', self._set_ylog)
 
-        add_callback(self, 'xflip', self._set_limits)
-        add_callback(self, 'yflip', self._set_limits)
         add_callback(self, 'xmin', self._set_limits)
         add_callback(self, 'xmax', self._set_limits)
         add_callback(self, 'ymin', self._set_limits)
@@ -96,18 +91,13 @@ class ScatterClient(Client):
         add_callback(self, 'xatt', partial(self._set_xydata, 'x'))
         add_callback(self, 'yatt', partial(self._set_xydata, 'y'))
         add_callback(self, 'jitter', self._jitter)
+
         self.axes.figure.canvas.mpl_connect('draw_event',
                                             lambda x: self._pull_properties())
 
     def _set_limits(self, *args):
-
-        xlim = min(self.xmin, self.xmax), max(self.xmin, self.xmax)
-        if self.xflip:
-            xlim = xlim[::-1]
-        ylim = min(self.ymin, self.ymax), max(self.ymin, self.ymax)
-        if self.yflip:
-            ylim = ylim[::-1]
-
+        xlim = self.xmin, self.xmax
+        ylim = self.ymin, self.ymax
         xold = self.axes.get_xlim()
         yold = self.axes.get_ylim()
         self.axes.set_xlim(xlim)

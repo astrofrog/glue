@@ -34,8 +34,10 @@ class ScatterLayerBase(object):
 
 
 class ScatterLayerArtist(MatplotlibLayerArtist, ScatterLayerBase):
+
     xatt = ChangedTrigger()
     yatt = ChangedTrigger()
+
     _property_set = MatplotlibLayerArtist._property_set + ['xatt', 'yatt']
 
     def __init__(self, layer, ax):
@@ -45,7 +47,7 @@ class ScatterLayerArtist(MatplotlibLayerArtist, ScatterLayerBase):
     def _recalc(self):
         self.clear()
         assert len(self.artists) == 0
-
+        
         try:
             x = self.layer[self.xatt].ravel()
             y = self.layer[self.yatt].ravel()
