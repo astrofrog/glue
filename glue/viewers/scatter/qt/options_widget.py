@@ -74,13 +74,15 @@ if __name__ == "__main__":
     from glue.external.qt import get_qapp
     from glue.core import Data, DataCollection
 
-    data = Data(x=[1,2,3], y=[4,5,6], z=[7,8,9])
-    dc = DataCollection([data])
+    data1 = Data(x=[1,2,3], y=[4,5,6], z=[7,8,9])
+    data2 = Data(a=[1,2,3], b=[4,5,6], c=[7,8,9])
+    dc = DataCollection([data1, data2])
 
     app = get_qapp()
 
     widget = ScatterOptionsWidget(data_collection=dc)
-    widget.append(data)
+    widget.append(data1)
+    widget.append(data2)
     widget.show()
     widget.raise_()
 
