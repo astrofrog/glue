@@ -106,6 +106,8 @@ class AttributeLimitsHelper(object):
         self._limits = limits_cache
         self._callbacks = []
 
+        self._auto_limits()
+
     def set_limits(self, vlo, vhi):
         self.lower_value.blockSignals(True)
         self.upper_value.blockSignals(True)
