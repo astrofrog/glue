@@ -8,6 +8,7 @@ from glue.external.qt import QtGui
 from glue.utils.qt.widget_properties import CurrentComboProperty, FloatLineProperty, connect_bool_button, ButtonProperty
 from glue.utils.qt import load_ui
 from glue.viewers.common.qt.attribute_limits_helper import AttributeLimitsHelper
+from glue.core.qt.data_combo_helper import DataComboHelper
 
 __all__ = ["ScatterOptionsWidget"]
 
@@ -38,11 +39,15 @@ class ScatterOptionsWidget(QtGui.QWidget):
         # Share limits cache between the two sets of limits
         limits_cache = {}
 
+        self.x_att_helper = ComponentIDComboHelper(self.ui.combo_x_attribute)
+
         self.x_limits_helper = AttributeLimitsHelper(self.ui.combo_x_attribute,
                                                      self.ui.value_x_min,
                                                      self.ui.value_x_max,
                                                      flip_button=self.ui.button_flip_x,
                                                      limits_cache=limits_cache)
+
+        self.y_att_helper = ComponentIDComboHelper(self.ui.combo_y_attribute)
 
         self.y_limits_helper = AttributeLimitsHelper(self.ui.combo_y_attribute,
                                                      self.ui.value_y_min,
