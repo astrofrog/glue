@@ -1,7 +1,6 @@
 from __future__ import absolute_import, division, print_function
 
 from glue.external.qt.QtCore import Qt
-# from glue.viewers.scatter.client import ScatterClient
 from glue.viewers.common.qt.toolbar import GlueToolbar
 from glue.viewers.common.qt.mouse_mode import (RectangleMode, CircleMode,
                                 PolyMode, HRangeMode, VRangeMode)
@@ -19,12 +18,6 @@ from ..layer_artist import ScatterLayerArtist
 __all__ = ['ScatterWidget']
 
 WARN_SLOW = 1000000  # max number of points which render quickly
-
-# TODO: split out things to do with options widget and caching into
-# options_widget.py, similarly to what we did in 3D
-
-# TODO: finish up attribute limits helper since it can be used here. Need to add
-# a log option.
 
 # TODO: use similar layout as for 3D scatter plot viewer and add log option to
 # 3D scatter plot viewer.
@@ -130,6 +123,8 @@ class ScatterWidget(DataViewer):
     def _connect(self):
 
         options = self._options_widget.ui
+        
+        # TODO: make an event for updated limits and updated attributes?
 
         options.button_x_log.toggled.connect(nonpartial(self._update_limits))
         options.button_y_log.toggled.connect(nonpartial(self._update_limits))
@@ -157,7 +152,6 @@ class ScatterWidget(DataViewer):
             result.add_mode(mode)
         self.addToolBar(result)
         return result
-
 
     def apply_mode(self, mode):
         roi = mode.roi()
