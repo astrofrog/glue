@@ -265,6 +265,7 @@ class ManualDataComboHelper(BaseDataComboHelper):
                       filter=lambda msg: msg.sender in self._datasets)
         hub.subscribe(self, DataCollectionDeleteMessage,
                       handler=lambda msg: self.remove(msg.data),
+                      filter=lambda msg: msg.sender in self._data_collection)
 
 
 class DataCollectionComboHelper(BaseDataComboHelper):
