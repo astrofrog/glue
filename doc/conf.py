@@ -46,6 +46,7 @@ import os
 import sys
 sys.path.insert(0, os.path.abspath('.'))
 extensions.append('redirect')
+os.environ['LANG'] = 'C.UTF-8'
 
 intersphinx_cache_limit = 10     # days to keep the cached inventories
 intersphinx_mapping = {
