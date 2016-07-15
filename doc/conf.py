@@ -46,7 +46,10 @@ import os
 import sys
 sys.path.insert(0, os.path.abspath('.'))
 extensions.append('redirect')
-os.environ['LANG'] = 'C.UTF-8'
+
+# Workaround for platforms where the default encoding is ASCII
+import locale
+locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
 
 intersphinx_cache_limit = 10     # days to keep the cached inventories
 intersphinx_mapping = {
