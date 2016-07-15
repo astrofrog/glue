@@ -18,4 +18,4 @@ dependencies:
   - pyzmq
   - mock
   - pytest
-  - python>=3.5
+  - python>=3
