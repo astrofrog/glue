@@ -1,4 +1,5 @@
 conda:
+    python: 3
     file: .environment.yml
     
 python:
