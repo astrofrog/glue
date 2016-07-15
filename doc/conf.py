@@ -49,7 +49,7 @@ extensions.append('redirect')
 
 # Workaround for platforms where the default encoding is ASCII
 import locale
-locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
+locale.setlocale(locale.LC_ALL, 'C.UTF-8')
 
 intersphinx_cache_limit = 10     # days to keep the cached inventories
 intersphinx_mapping = {
