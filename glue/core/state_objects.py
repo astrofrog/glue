@@ -36,14 +36,15 @@ class State(HasCallbackProperties):
         self.update_from_dict(state.as_dict())
 
     def update_from_dict(self, properties):
-        print("STARTING UPDATING FROM DICT")
+        print("\n" + "-" * 72)
+        print("Update {0} from Dictionary".format(self.__class__.__name__))
+        print("State before update", self.as_dict())
         for name in sorted(properties, key=self.update_priority, reverse=True):
             if self.is_property(name):
-                print("UPDATE FROM DICT", name, properties[name])
+                print(name, '=', properties[name])
                 setattr(self, name, properties[name])
-                print("DONE UPDATING FROM DICT", name)
-        print("FINISHED UPDATING FROM DICT")
-        print("CURRENT STATE", self.as_dict())
+        print("State after update", self.as_dict())
+        print("-" * 72 + "\n")
 
     def is_property(self, name):
         return isinstance(getattr(type(self), name, None), CallbackProperty)
@@ -150,6 +151,7 @@ class StateAttributeCacheHelper(object):
         self._update_attribute()
 
     def _update_attribute(self):
+
         if self.component_id in self._cache:
             # The component ID already exists in the cache, so just revert to
             # that version of the values/settings.
