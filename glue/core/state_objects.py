@@ -43,6 +43,7 @@ class State(HasCallbackProperties):
                 setattr(self, name, properties[name])
                 print("DONE UPDATING FROM DICT", name)
         print("FINISHED UPDATING FROM DICT")
+        print("CURRENT STATE", self.as_dict())
 
     def is_property(self, name):
         return isinstance(getattr(type(self), name, None), CallbackProperty)
