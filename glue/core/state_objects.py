@@ -37,6 +37,7 @@ class State(HasCallbackProperties):
 
     def update_from_dict(self, properties):
         for name in sorted(properties, key=self.update_priority, reverse=True):
+            print("UPDATE FROM DICT", name, properties[name])
             if self.is_property(name):
                 setattr(self, name, properties[name])
 
