@@ -21,6 +21,7 @@ class ImageViewerState(MatplotlibDataViewerState):
     reference_data = DeferredDrawCallbackProperty()
     slices = DeferredDrawCallbackProperty()
     color_mode = DeferredDrawCallbackProperty('Colormaps')
+    single_slice_subset = DeferredDrawCallbackProperty(False)
 
     def __init__(self, **kwargs):
 

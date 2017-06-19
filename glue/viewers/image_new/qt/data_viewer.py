@@ -105,6 +105,13 @@ class ImageViewer(MatplotlibDataViewer):
                                                   other_att=self.state.y_att,
                                                   coord='x')
 
+            if self.state.single_slice_subset:
+                for i in range(self.state.reference_data.ndim):
+                    pid = self.state.reference_data.pixel_component_ids[i]
+                    if pid is not self.state.x_att and pid is not self.state.y_att:
+                        current_slice = self.state.slices[i]
+                        subset_state = subset_state & (pid == current_slice)
+
             mode = EditSubsetMode()
             mode.update(self._data, subset_state, focus_data=layer_artist.layer)
 
