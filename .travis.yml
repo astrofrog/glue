@@ -1,9 +1,5 @@
 language: c
 
-os:
-    - linux
-    - osx
-
 sudo: false
 
 addons:
@@ -15,9 +11,6 @@ notifications:
   email: false
 
 env:
-  matrix:
-    - PYTHON_VERSION=2.7
-    - PYTHON_VERSION=3.6
   global:
     # We add astropy-ci-extras to have the latest version of Astropy with older Numpy versions.
     - CONDA_CHANNELS="astropy-ci-extras astropy"
@@ -43,60 +36,11 @@ matrix:
 
     include:
 
-        # Astropy dev
-        - os: linux
-          env: PYTHON_VERSION=3.6
-               ASTROPY_VERSION=dev
-
-        # Numpy dev
-        - os: linux
-          env: PYTHON_VERSION=3.6
-               NUMPY_VERSION=dev
-
-        # The following configuration tests that glue functions with minimal
-        # dependencies.
-        - os: linux
-          env: PYTHON_VERSION=3.6
-               PYTEST_ARGS="--cov glue"
-               CONDA_DEPENDENCIES="pip setuptools pandas mock matplotlib qtpy ipython ipykernel qtconsole"
-               PIP_DEPENDENCIES="pytest-cov coveralls"
-               REMOVE_INSTALL_REQUIRES=1
-
         - os: linux
           env: PYTHON_VERSION=3.6
                DOC_TRIGGER=1
                PYTEST_ARGS="--cov glue --no-optional-skip"
                NO_CFG_FILES=true
-
-        # Test with older package versions:
-
-        - os: linux
-          env: PYTHON_VERSION=2.7
-               MATPLOTLIB_VERSION=1.4
-               NUMPY_VERSION=1.9
-               IPYTHON_VERSION=4
-               PANDAS_VERSION=0.14
-               SETUPTOOLS=1.0
-               QT_PKG=pyqt
-
-        - os: linux
-          env: PYTHON_VERSION=2.7
-               MATPLOTLIB_VERSION=1.5
-               NUMPY_VERSION=1.10
-               QT_PKG=pyqt
-
-        # Test with PySide, but due to segmentation faults, mark as an
-        # allowed failure.
-        - os: linux
-          env: PYTHON_VERSION=2.7
-               QT_PKG=pyside
-
-        # Test without any Qt installation, which will also cause all qt
-        # sub-directories to be removed, to make sure that no non-Qt code has
-        # any dependence on Qt code.
-        - os: linux
-          env: PYTHON_VERSION=3.6
-               QT_PKG=False
 
     allow_failures:
 
@@ -194,14 +138,12 @@ script:
 
   - if [[ $QT_PKG == False ]]; then glue --version; fi
 
-  - python setup.py test -a "$PYTEST_ARGS"
-
   # In the following, we use separate if statements for each line, to make
   # sure the exit code from each one is taken into account for the overall
   # exit code.
   - if [ $DOC_TRIGGER ]; then cd doc; make html linkcheck 2> warnings.log; cd ..; fi
   - if [ $DOC_TRIGGER ]; then cat doc/warnings.log; fi
-  - if [ $DOC_TRIGGER ]; then grep -v "numpy.dtype size changed" doc/warnings.log | grep -v "return f(\*args, \*\*kwds)" > doc/warnings_filt.log; fi
+  - if [ $DOC_TRIGGER ]; then grep -v "numpy.dtype size changed" doc/warnings.log | grep -v "return f(\*args, \*\*kwds)"; fi
   - if [ $DOC_TRIGGER ]; then cat doc/warnings_filt.log; fi
   # make sure stderr was empty, i.e. no warnings
   - if [ $DOC_TRIGGER ]; then test ! -s doc/warnings_filt.log; fi
