@@ -4,8 +4,10 @@ import os
 from collections import defaultdict
 
 from qtpy import QtWidgets
+from qtpy.QtCore import Qt
 
-from glue.core.parse import ParsedComponentLink
+from glue.core import ComponentID
+from glue.core.parse import ParsedCommand, ParsedComponentLink
 from glue.utils.qt import load_ui
 
 __all__ = ['CustomComponentWidget']
@@ -24,19 +26,7 @@ class CustomComponentWidget(QtWidgets.QDialog):
 
         # Populate data combo
         for data in self.data_collection:
-            self.ui.combosel_data.addItem(data.label, userData=data.label)
-
-        # Figure out what the derived components are for each dataset. We then
-        # store these inside a dictionary - we only update the actual data
-        # objects at the end once the user clicks 'ok'.
-        self.derived = defaultdict(list)
-        for data in self.data_collection:
-            for cid in data.derived_components:
-                comp = data.get_component(cid)
-                if isinstance(comp.link, ParsedComponentLink):
-                    self.derived[data].append({'label': cid.label,
-                                               'type': 'custom',
-                                               'expression': comp._parsed._cmd})
+            self.ui.combosel_data.addItem(data.label, userData=data)
 
         self.ui.combosel_data.setCurrentIndex(0)
         self.ui.combosel_data.currentIndexChanged.connect(self._update_derived_component_list)
@@ -45,17 +35,27 @@ class CustomComponentWidget(QtWidgets.QDialog):
         self.ui.list_derived.itemSelectionChanged.connect(self._update_expression_panel)
 
         self.ui.button_add_component.clicked.connect(self._add_component)
+        self.ui.button_save.clicked.connect(self._save_current_expression)
         # self.ui.button_remove_component.clicked.connect(self._remove_component)
+
+        self.ui.list_derived.itemChanged.connect(self._component_renamed)
 
     @property
     def data(self):
         return self.ui.combosel_data.currentData()
 
     @property
+    def derived_components(self):
+        for cid in self.data.derived_components:
+            comp = self.data.get_component(cid)
+            if isinstance(comp.link, ParsedComponentLink):
+                yield cid, comp
+
+    @property
     def selected_component(self):
-        for index in range(self.ui.list_derived.count()):
-            if self.ui.list_derived.item(index).isSelected():
-                return self.derived[self.data][index]
+        items = self.ui.list_derived.selectedItems()
+        if len(items) == 1:
+            return items[0].data(Qt.UserRole)
         else:
             return None
 
@@ -66,31 +66,57 @@ class CustomComponentWidget(QtWidgets.QDialog):
 
         self.ui.list_derived.clear()
 
-        for component in self.derived[self.data]:
-            item = QtWidgets.QListWidgetItem(component['label'])
+        for cid, comp in self.derived_components:
+            item = QtWidgets.QListWidgetItem(cid.label)
+            item.setData(Qt.UserRole, cid)
+            item.setFlags(item.flags() | Qt.ItemIsEditable)
             self.ui.list_derived.addItem(item)
+
+        self._update_expression_panel()
 
     def _update_expression_panel(self, *args):
 
-        component = self.selected_component
+        cid = self.selected_component
 
-        print(component)
+        print(cid)
 
-        if component is None:
+        if cid is None:
             self.ui.text_expression.setText('')
+            self.ui.button_save.setEnabled(False)
+            return
+        else:
+            self.ui.button_save.setEnabled(True)
 
-        self.ui.text_expression.setText(component['expression'])
+        comp = self.data.get_component(cid)
+
+        self.ui.text_expression.setText(comp.link._parsed._cmd)
+
+    def _save_current_expression(self, *args):
+
+        cid = self.selected_component
+        comp = self.data.get_component(cid)
+        comp.link._parsed._cmd = self.ui.text_expression.toPlainText()
 
     def _add_component(self, *args):
 
-        print("ADD COMPONENT")
+        self.data.add_component
 
-        self.derived[self.data].append({'label': 'Component name',
-                                        'type': 'custom',
-                                        'expression': ''})
+        command = ParsedCommand('{test1:x}', {'test1:x': self.data.id['x']})
+        link = ParsedComponentLink(ComponentID('new'), command)
+        self.data.add_component_link(link)
 
         self._update_derived_component_list()
-        self._update_expression_panel()
+
+    def _component_renamed(self, *args):
+        # This gets called if the text or data of the item change. It may be
+        # called in more situations than we need, but no harm - we are just
+        # making sure the data object is in sync with the visible text.
+        for idx in range(self.ui.list_derived.count()):
+            item = self.ui.list_derived.item(idx)
+            label = item.text()
+            cid = item.data(Qt.UserRole)
+            if label != cid.label:
+                cid.label = label
 
 
 def main():

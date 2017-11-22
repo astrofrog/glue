@@ -445,6 +445,7 @@ class Data(object):
 
         dc = DerivedComponent(self, link)
         to_ = link.get_to_id()
+        print(to_.label, dc)
         self.add_component(dc, label=to_, hidden=hidden)
         return dc
 
