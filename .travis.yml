@@ -66,11 +66,11 @@ matrix:
           env: PYTHON_VERSION=3.6
                ASTROPY_VERSION=dev
 
-        # Numpy dev
+        # Numpy dev and Matplotlib dev
         - os: linux
           stage: Full
           env: PYTHON_VERSION=3.6
-               NUMPY_VERSION=dev
+               NUMPY_VERSION=dev MATPLOTLIB_VERSION=dev
 
         # The following configuration tests that glue functions with minimal
         # dependencies.
