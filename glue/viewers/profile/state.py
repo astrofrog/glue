@@ -12,7 +12,7 @@ from glue.viewers.matplotlib.state import (MatplotlibDataViewerState,
                                            DeferredDrawSelectionCallbackProperty as DDSCProperty)
 from glue.core.data_combo_helper import ManualDataComboHelper, ComponentIDComboHelper
 from glue.utils import defer_draw, nanmin, nanmax
-from glue.core.link_manager import is_convertible_to_single_pixel_cid
+from glue.core.link_manager import is_convertible_to_single_pixel_cid, find_identical_reference_cid
 from glue.core.exceptions import IncompatibleDataException
 
 __all__ = ['ProfileViewerState', 'ProfileLayerState']
@@ -214,7 +214,18 @@ class ProfileLayerState(MatplotlibLayerState):
         pix_cid = is_convertible_to_single_pixel_cid(self.layer, self.viewer_state.x_att)
 
         if pix_cid is None:
-            raise IncompatibleDataException()
+
+            # If the attribute is a world coordinate, we now check whether
+            # the dataset in the current layer has an equivalent single
+            # world coordinate
+            if self.viewer_state.x_att in self.viewer_state.reference_data.world_component_ids:
+                world_cid = find_identical_reference_cid(self.layer, self.viewer_state.x_att)
+                if world_cid is not None and world_cid in self.layer.world_component_ids:
+                    pix_cid = self.layer.pixel_component_ids[self.layer.world_component_ids.index(world_cid)]
+                else:
+                    raise IncompatibleDataException()
+            else:
+                raise IncompatibleDataException()
 
         # If we get here, then x_att does correspond to a single pixel axis in
         # the cube, so we now prepare a list of axes to collapse over.

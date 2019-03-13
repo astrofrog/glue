@@ -11,10 +11,8 @@ __all__ = ['ProfileOptionsWidget']
 
 
 WARNING_TEXT = ("Warning: the coordinate '{label}' is not aligned with pixel "
-                "grid for any of the datasets, so no profiles could be "
-                "computed. Try selecting another world coordinates or one of the "
-                "pixel coordinates.")
-
+                "grid, so the values shown on the x-axis are approximate and "
+                "correspond to the coordinates at the center of the dataset")
 
 class ProfileOptionsWidget(QtWidgets.QWidget):
 

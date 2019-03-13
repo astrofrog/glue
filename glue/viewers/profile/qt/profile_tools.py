@@ -143,6 +143,11 @@ class ProfileTools(QtWidgets.QWidget):
         self._nav_viewers = {}
         for data in self._nav_data:
             pix_cid = is_convertible_to_single_pixel_cid(data, self.viewer.state.x_att)
+            # TODO: maybe we can just assume it's world if pix_cid is None since
+            # what else would it be?
+            if pix_cid is None and self.viewer.state.x_att in self.viewer.state.reference_data.world_component_ids:
+                pix_cid = self.viewer.state.reference_data.pixel_component_ids[self.viewer.state.reference_data.world_component_ids.index(self.viewer.state.x_att)]
+            print("PIXEL", pix_cid)
             self._nav_viewers[data] = self._viewers_with_data_slice(data, pix_cid)
 
     def _on_slider_change(self, *args):
@@ -167,6 +172,7 @@ class ProfileTools(QtWidgets.QWidget):
             axis = self.viewer.state.x_att.axis
             slc = int(round(x))
         else:
+            # OH NOES ANOTHER ONE...
             pix_cid = is_convertible_to_single_pixel_cid(data, self.viewer.state.x_att)
             axis = pix_cid.axis
             axis_view = [0] * data.ndim

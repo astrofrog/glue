@@ -31,7 +31,7 @@ from glue.core.exceptions import IncompatibleAttribute
 from glue.core.subset import Subset
 
 __all__ = ['accessible_links', 'discover_links', 'find_dependents',
-           'LinkManager', 'is_equivalent_cid']
+           'LinkManager', 'is_equivalent_cid', 'find_identical_reference_cid']
 
 
 def accessible_links(cids, links):
@@ -288,7 +288,7 @@ class LinkManager(HubListener):
         return item in self._links
 
 
-def _find_identical_reference_cid(data, cid):
+def find_identical_reference_cid(data, cid):
     """
     Given a dataset and a component ID, return the equivalent component ID that
     truly belongs to the dataset (not via a link). Returns None if there is
@@ -301,7 +301,7 @@ def _find_identical_reference_cid(data, cid):
     if isinstance(target_comp, DerivedComponent):
         if target_comp.link.identity:
             updated_cid = target_comp.link.get_from_ids()[0]
-            return _find_identical_reference_cid(data, updated_cid)
+            return find_identical_reference_cid(data, updated_cid)
         else:
             return None
     else:
@@ -322,8 +322,8 @@ def is_equivalent_cid(data, cid1, cid2):
     """
 
     # Dereference the component IDs to find base component ID
-    cid1 = _find_identical_reference_cid(data, cid1)
-    cid2 = _find_identical_reference_cid(data, cid2)
+    cid1 = find_identical_reference_cid(data, cid1)
+    cid2 = find_identical_reference_cid(data, cid2)
 
     return cid1 is cid2
 
