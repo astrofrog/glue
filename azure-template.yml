@@ -1,0 +1,42 @@
+parameters:
+  tox_pre: ''
+  tox_test_env: ''
+  envs: []
+
+jobs:
+
+- ${{ each job in parameters.jobs }}:
+
+    ${{ each env in job.value.envs }}:
+
+    - job: ${{ coalesce(job.parameters.name, env) }}
+      pool:
+        ${{ if eq(job.parameters.os, 'macosx') }}:
+          vmImage: macOS 10.13
+        ${{ if eq(job.parameters.os, 'linux') }}:
+          vmImage: Ubuntu 16.04
+        ${{ if eq(job.parameters.os, 'windows') }}:
+          vmImage: vs2017-win2016
+
+      steps:
+
+      - task: UsePythonVersion@0
+        inputs:
+          versionSpec: '2.7'
+          architecture: 'x64'
+
+      - task: UsePythonVersion@0
+        inputs:
+          versionSpec: '3.6'
+          architecture: 'x64'
+
+      - task: UsePythonVersion@0
+        inputs:
+          versionSpec: '3.7'
+          architecture: 'x64'
+
+      - script: python -m pip install tox
+        displayName: Installing tox
+
+      - script: ${{ job.parameters.tox_prefix }} python -m tox -e ${{ env }}
+        displayName: Running tox -e ${{ env }}

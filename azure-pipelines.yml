@@ -1,19 +1,20 @@
-# Starter pipeline
-# Start with a minimal pipeline that you can customize to build and deploy your code.
-# Add steps that build, run tests, deploy, and more:
-# https://aka.ms/yaml
+jobs:
 
-trigger:
-- master
+- template: azure-template.yml
+  parameters:
+    name: Linux
+    os: linux
+    tox_pre: DISPLAY=:99.0
+    envs: [py36-pyqt511, py36-pyqt512]
 
-pool:
-  vmImage: 'ubuntu-latest'
+- template: azure-template.yml
+  parameters:
+    name: MacOSX
+    os: macosx
+    envs: [py36-pyqt59]
 
-steps:
-- script: echo Hello, world!
-  displayName: 'Run a one-line script'
-
-- script: |
-    echo Add other tasks to build, test, and deploy your project.
-    echo See https://aka.ms/yaml
-  displayName: 'Run a multi-line script'
+- template: azure-template.yml
+  parameters:
+    name: Windows
+    os: windows
+    envs: [py36-pyqt510]
