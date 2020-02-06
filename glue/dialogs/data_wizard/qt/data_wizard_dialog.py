@@ -70,8 +70,11 @@ class GlueDataDialog(object):
 
     def factory(self):
         fltr = self._fd.selectedNameFilter()
+        print('fltr', repr(fltr))
         for k, v in self.filters:
+            print('k, v', repr(k), repr(v))
             if v.startswith(fltr):
+                print('v.startswith(fltr)', v.startswith(fltr))
                 return k
 
     def setNameFilter(self):
