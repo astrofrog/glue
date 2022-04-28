@@ -14,6 +14,7 @@ from glue.utils import defer_draw
 from glue.core.link_manager import is_convertible_to_single_pixel_cid
 from glue.core.exceptions import IncompatibleDataException
 from glue.core.message import SubsetUpdateMessage
+from glue.core.units import find_unit_choices
 
 __all__ = ['ProfileViewerState', 'ProfileLayerState']
 
@@ -35,6 +36,9 @@ class ProfileViewerState(MatplotlibDataViewerState):
 
     x_att = DDSCProperty(docstring='The component ID giving the pixel or world component '
                                    'shown on the x axis')
+
+    x_display_unit = DDSCProperty(docstring='The units to use to display the x-axis.')
+    y_display_unit = DDSCProperty(docstring='The units to use to display the y-axis')
 
     reference_data = DDSCProperty(docstring='The dataset that is used to define the '
                                             'available pixel/world components, and '
@@ -155,6 +159,17 @@ class ProfileViewerState(MatplotlibDataViewerState):
     @defer_draw
     def _layers_changed(self, *args):
         self._update_combo_ref_data()
+        self._update_y_display_unit_choices()
+
+    def _update_y_display_unit_choices(self):
+        component_units = set()
+        for layer_state in self.layers:
+            if isinstance(layer_state.layer, BaseData):
+                component = layer_state.layer.get_component(layer_state.attribute)
+                if component.units:
+                    component_units.add(component_units)
+        choices = find_unit_choices(component_units)
+        ProfileViewerState.y_display_unit.set_choices(self, choices)
 
     @defer_draw
     def _reference_data_changed(self, before=None, after=None):
