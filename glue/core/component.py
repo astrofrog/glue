@@ -55,8 +55,9 @@ class Component(object):
                                 'np.datetime64 arrays')
             data = coerce_numeric(data)
             data.setflags(write=False)  # data is read-only
-
-        self._data = data
+            self._data = getattr(data, 'value', data)
+        else:
+            self._data = data
 
     @property
     def units(self):
@@ -180,6 +181,14 @@ class Component(object):
 
         if DASK_INSTALLED and isinstance(data, da.Array):
             return DaskComponent(data, units=units)
+
+        if units is None:
+            try:
+                default_units = str(getattr(data, 'unit', ''))
+                u.Unit(default_units, parse_strict='raise')
+                units = default_units
+            except ValueError:
+                pass
 
         data = np.asarray(data)
 
