@@ -1433,9 +1433,9 @@ class Data(BaseCartesianData):
         else:
             raise IncompatibleAttribute(component_id)
 
-    def convert_component_units_to(self, component_id, units):
+    def convert_component_units_to(self, component_id, units, equivalencies=None):
         comp = self.get_component(component_id)
-        comp._convert_to_units(units)
+        comp._convert_to_units(units, equivalencies)
         self._numerical_data_changed()
 
     def to_dataframe(self, index=None):

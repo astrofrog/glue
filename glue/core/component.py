@@ -41,16 +41,18 @@ class Component(object):
     for the data type.
     """
 
-    def __init__(self, data, units=None):
+    def __init__(self, data, units=None, equivalencies=None):
 
-        # The physical units of the data
+        # The physical units of the data and default equivalencies
+        self._equivalencies = equivalencies
         self.units = units
 
         # The actual data
         # subclasses may pass non-arrays here as placeholders.
         if isinstance(data, np.ndarray):
             if data.dtype.kind == 'M':
-                raise TypeError('DateTimeComponent should be used instead of Component for np.datetime64 arrays')
+                raise TypeError('DateTimeComponent should be used instead of Component for '
+                                'np.datetime64 arrays')
             data = coerce_numeric(data)
             data.setflags(write=False)  # data is read-only
 
@@ -62,29 +64,37 @@ class Component(object):
 
     @units.setter
     def units(self, value):
-        if value is None:
+        if value in (None, 'None', 'none'):
             new_units = ''
         else:
             new_units = str(value)
-        if getattr(self, '_original_units', '') == '':
+        if getattr(self, '_original_units', '') in ('', None):
             self._original_units = new_units
-        if not u.Unit(self._original_units).is_equivalent(u.Unit(new_units)):
+        if not u.Unit(self._original_units).is_equivalent(u.Unit(new_units),
+                                                          equivalencies=self._equivalencies):
             raise u.UnitConversionError(f"New unit '{new_units}' must be convertible "
                                         f"from original one '{self._original_units}'")
         self._units = new_units
 
-    def _convert_to_units(self, units):
+    def _convert_to_units(self, units, equivalencies=None):
+        if equivalencies is not None:
+            self._equivalencies = equivalencies
         self.units = units
 
     @property
     def _units_scale(self):
-        return u.Unit(self._original_units).to(u.Unit(self._units))
+        return u.Unit(self._original_units).to(u.Unit(self._units),
+                                               equivalencies=self._equivalencies)
 
     @property
     def data(self):
         """The underlying :class:`~numpy.ndarray`"""
         if self._units != self._original_units:
-            return self._data * self._units_scale
+            if self._equivalencies in (None, []):
+                return self._data * self._units_scale
+            else:
+                return (self._data * u.Unit(self._original_units)).to_value(
+                    u.Unit(self._units), equivalencies=self._equivalencies)
         else:
             return self._data
 
@@ -101,7 +111,7 @@ class Component(object):
     def __getitem__(self, key):
         logging.debug("Using %s to index data of shape %s", key, self.shape)
         if self._units != self._original_units:
-           return self._data[key] * self._units_scale
+            return self._data[key] * self._units_scale
         else:
             return self._data[key]
 
@@ -510,8 +520,9 @@ class DateTimeComponent(Component):
         The data to store, with `~numpy.datetime64` dtype
     """
 
-    def __init__(self, data, units=None):
+    def __init__(self, data, units=None, equivalencies=None):
 
+        self._equivalencies = equivalencies
         self.units = units
 
         if not isinstance(data, np.ndarray) or data.dtype.kind != 'M':
@@ -533,8 +544,10 @@ class DaskComponent(Component):
     A data component powered by a dask array.
     """
 
-    def __init__(self, data, units=None):
+    def __init__(self, data, units=None, equivalencies=None):
+
         self._data = data
+        self._equivalencies = equivalencies
         self.units = units
 
     @property
