@@ -5,7 +5,7 @@ from inspect import getmro
 from collections import Counter
 
 from glue.core.exceptions import InvalidSubscriber, InvalidMessage
-from glue.core.message import Message
+from glue.core.message import Message, AnyMessageList
 from glue.core.hub_callback_container import HubCallbackContainer
 
 __all__ = ['Hub', 'HubListener']
@@ -204,10 +204,7 @@ class Hub(object):
             yield
         finally:
             self._paused = False
-            # TODO: could de-duplicate messages here
-            for message in self._queue:
-                self.broadcast(message)
-            self._queue = []
+            self._broadcast_and_empty_queue()
 
     def broadcast(self, message):
         """Broadcasts a message to all subscribed objects.
@@ -223,6 +220,16 @@ class Hub(object):
             logging.getLogger(__name__).info("Broadcasting %s", message)
             for subscriber, handler in self._find_handlers(message):
                 handler(message)
+
+    def _broadcast_and_empty_queue(self):
+        for subscriber, subscriptions in list(self._subscriptions.items()):
+            if AnyMessageList in subscriptions:
+                handler, test, priority = subscriptions[AnyMessageList]
+                handler(self._queue)
+        for message in self._queue:
+            for subscriber, handler in self._find_handlers(message):
+                handler(message)
+        self._queue = []
 
     def __getstate__(self):
         """ Return a picklable representation of the hub

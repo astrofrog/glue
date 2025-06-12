@@ -338,9 +338,8 @@ class Viewer(BaseViewer):
 
         super(Viewer, self).register_to_hub(hub)
 
-        hub.subscribe(self, msg.SubsetCreateMessage,
-                      handler=self._add_subset,
-                      filter=self._subset_has_data)
+        hub.subscribe(self, msg.AnyMessageList,
+                      handler=self._process_messages)
 
         hub.subscribe(self, msg.SubsetUpdateMessage,
                       handler=self._update_subset,
@@ -376,6 +375,12 @@ class Viewer(BaseViewer):
         hub.subscribe(self, msg.LayerArtistDisabledMessage,
                       self.draw_legend,
                       filter=self._has_layer_artist)
+
+    def _process_messages(self, messages):
+        with delay_callback(self.state, 'layers'):
+            for message in messages:
+                if isinstance(message, msg.SubsetCreateMessage) and self._subset_has_data(message):
+                    self.add_subset(message.subset)
 
     def _has_layer_artist(self, message):
         return message.layer_artist in self.layers
