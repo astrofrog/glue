@@ -56,16 +56,25 @@ class SimpleAstropyUnitConverter:
         return (values * u.Unit(original_units)).to_value(target_units)
 
 
+
+UNIT_CHOICES_CACHE = {}
+
 def find_unit_choices(data_cid_units):
     equivalent_units = []
     converter_helper = unit_converter.members[settings.UNIT_CONVERTER]()
     for data, cid, unit_string in data_cid_units:
-        try:
-            if unit_string not in equivalent_units:
-                equivalent_units.append(unit_string)
-            for x in converter_helper.equivalent_units(data, cid, unit_string):
-                if x not in equivalent_units:
-                    equivalent_units.append(str(x))
-        except ValueError:
-            pass
-    return equivalent_units
+        hash_unit = (data.uuid, cid.uuid, unit_string)
+        if hash_unit in UNIT_CHOICES_CACHE:
+            equivalent_units.extend(UNIT_CHOICES_CACHE[hash_unit])
+        else:
+            equivalent_units_indiv = []
+            try:
+                if unit_string not in equivalent_units:
+                    equivalent_units_indiv.append(unit_string)
+                for x in converter_helper.equivalent_units(data, cid, unit_string):
+                    equivalent_units_indiv.append(str(x))
+                UNIT_CHOICES_CACHE[hash_unit] = equivalent_units_indiv
+                equivalent_units.extend(equivalent_units_indiv)
+            except ValueError:
+                pass
+    return sorted(set(equivalent_units))
