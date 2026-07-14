@@ -131,3 +131,91 @@ def test_indexed_data():
 
     assert viewer.state.x_att is data_2d.main_components[0]
     assert viewer.state.y_att is data_2d.main_components[1]
+
+
+def test_vertical_horizontal_lines():
+
+    # A layer for which only one of the two attributes can be resolved via
+    # links should be shown as full-height vertical (or full-width horizontal)
+    # lines rather than being disabled.
+
+    spectrum = Data(wavelength=np.linspace(400, 700, 100),
+                    flux=np.random.random(100), label='spectrum')
+    lines = Data(position=[450., 550., 650.], label='lines')
+
+    app = Application()
+    app.data_collection.append(spectrum)
+    app.data_collection.append(lines)
+
+    viewer = app.new_data_viewer(SimpleScatterViewer)
+    viewer.add_data(spectrum)
+    viewer.state.x_att = spectrum.id['wavelength']
+    viewer.state.y_att = spectrum.id['flux']
+
+    viewer.add_data(lines)
+    artist = viewer.layers[1]
+
+    # Without any links the layer cannot be shown at all
+    assert not artist.enabled
+    assert not artist.state.vline_visible
+
+    # Linking the line positions to the x attribute should enable the layer
+    # and automatically turn on the vertical line mode
+    app.data_collection.add_link(LinkSame(lines.id['position'], spectrum.id['wavelength']))
+
+    assert artist.enabled
+    assert artist.state.vline_visible
+    assert not artist.state.hline_visible
+
+    segments = artist.vline_collection.get_segments()
+    assert len(segments) == 3
+    assert_allclose(segments[0], [[450, 0], [450, 1]])
+
+    # The lines span the full height of the axes independently of the y limits
+    assert artist.vline_collection.get_transform() is artist.axes.get_xaxis_transform()
+
+    # Markers cannot be shown since the y attribute cannot be resolved
+    assert len(artist.plot_artist.get_xdata()) == 0
+
+    # The vertical line mode is only enabled automatically once, so it should
+    # stay off if turned off explicitly
+    artist.state.vline_visible = False
+    assert len(artist.vline_collection.get_segments()) == 0
+    artist.update()
+    assert not artist.state.vline_visible
+    artist.state.vline_visible = True
+
+    # Once the y attribute is also linked, the markers appear as usual and the
+    # vertical lines remain
+    app.data_collection.add_link(LinkSame(lines.id['position'], spectrum.id['flux']))
+
+    assert len(artist.plot_artist.get_xdata()) == 3
+    assert len(artist.vline_collection.get_segments()) == 3
+
+
+def test_vertical_horizontal_lines_both_attributes():
+
+    # Check the vertical and horizontal line modes for a normal layer where
+    # both attributes are present
+
+    data = Data(x=[1., 2., 3.], y=[4., 5., 6.], label='data')
+
+    app = Application()
+    app.data_collection.append(data)
+
+    viewer = app.new_data_viewer(SimpleScatterViewer)
+    viewer.add_data(data)
+    artist = viewer.layers[0]
+
+    # Neither mode should have been enabled automatically
+    assert not artist.state.vline_visible
+    assert not artist.state.hline_visible
+
+    artist.state.vline_visible = True
+    artist.state.hline_visible = True
+
+    assert len(artist.vline_collection.get_segments()) == 3
+    segments = artist.hline_collection.get_segments()
+    assert len(segments) == 3
+    assert_allclose(segments[0], [[0, 4], [1, 4]])
+    assert artist.hline_collection.get_transform() is artist.axes.get_yaxis_transform()

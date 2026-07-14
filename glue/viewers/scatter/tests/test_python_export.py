@@ -6,6 +6,7 @@ from astropy.utils import NumpyRNGContext
 
 from glue.core import Data, DataCollection
 from glue.core.application_base import Application
+from glue.core.link_helpers import LinkSame
 from glue.viewers.scatter.viewer import SimpleScatterViewer
 from glue.viewers.matplotlib.tests.test_python_export import BaseTestExportPython, random_with_nan
 
@@ -104,6 +105,21 @@ class TestExportPython(BaseTestExportPython):
         self.viewer.state.layers[0].cmap_vmax = 0.7
         self.viewer.state.layers[0].cmap = plt.cm.BuGn
         self.test_line(tmpdir)
+
+    def test_vline_hline(self, tmpdir):
+        self.viewer.state.layers[0].vline_visible = True
+        self.viewer.state.layers[0].hline_visible = True
+        self.viewer.state.layers[0].linewidth = 2
+        self.viewer.state.layers[0].color = 'purple'
+        self.viewer.state.layers[0].alpha = 0.5
+        self.assert_same(tmpdir)
+
+    def test_vline_only_x_linked(self, tmpdir):
+        lines = Data(positions=self.data['a'][:10], label='lines')
+        self.data_collection.append(lines)
+        self.data_collection.add_link(LinkSame(lines.id['positions'], self.data.id['a']))
+        self.viewer.add_data(lines)
+        self.assert_same(tmpdir)
 
     def test_errorbarx(self, tmpdir):
         self.viewer.state.layers[0].xerr_visible = True

@@ -1,3 +1,4 @@
+from glue.core.exceptions import IncompatibleAttribute
 from glue.viewers.common.python_export import code, serialize_options
 
 
@@ -5,6 +6,16 @@ def python_export_scatter_layer(layer, *args):
 
     if len(layer.mpl_artists) == 0 or not layer.enabled or not layer.visible:
         return [], None
+
+    def resolvable(att):
+        try:
+            layer.layer[att]
+        except (IncompatibleAttribute, IndexError):
+            return False
+        return True
+
+    x_available = resolvable(layer._viewer_state.x_att)
+    y_available = resolvable(layer._viewer_state.y_att)
 
     script = ""
     imports = ["import numpy as np"]
@@ -31,15 +42,18 @@ def python_export_scatter_layer(layer, *args):
     x_transform_close = ")" if degrees else ""
     y_transform_open = "np.radians(" if degrees and full_sphere else ""
     y_transform_close = ")" if degrees and full_sphere else ""
-    script += "x = {0}layer_data['{1}']{2}\n".format(x_transform_open, layer._viewer_state.x_att.label, x_transform_close)
-    script += "y = {0}layer_data['{1}']{2}\n".format(y_transform_open, layer._viewer_state.y_att.label, y_transform_close)
+    if x_available:
+        script += "x = {0}layer_data['{1}']{2}\n".format(x_transform_open, layer._viewer_state.x_att.label, x_transform_close)
+    if y_available:
+        script += "y = {0}layer_data['{1}']{2}\n".format(y_transform_open, layer._viewer_state.y_att.label, y_transform_close)
     if full_sphere:
         script += "x = np.mod(x + np.pi, 2 * np.pi) - np.pi\n"
         if layer._viewer_state.x_min > layer._viewer_state.x_max:
             script += "x = np.negative(x)\n"
         if layer._viewer_state.y_min > layer._viewer_state.y_max:
             script += "y = np.negative(y)\n"
-    script += "keep = ~np.isnan(x) & ~np.isnan(y)\n\n"
+    if x_available and y_available:
+        script += "keep = ~np.isnan(x) & ~np.isnan(y)\n\n"
     if polar:
         script += 'ax.xaxis.set_major_locator(ThetaLocator(AutoLocator()))\n'
         script += 'ax.xaxis.set_major_formatter({0}("{1}"))\n'.format(theta_formatter, layer._viewer_state.x_axislabel)
@@ -55,7 +69,7 @@ def python_export_scatter_layer(layer, *args):
         if layer._viewer_state.plot_mode != 'lambert':
             script += 'ax.yaxis.set_major_formatter({0}())\n'.format(theta_formatter)
 
-    if layer.state.cmap_mode == 'Linear':
+    if layer.state.cmap_mode == 'Linear' and x_available and y_available:
 
         script += "# Set up colors\n"
         script += "colors = layer_data['{0}']\n".format(layer.state.cmap_att.label)
@@ -64,7 +78,7 @@ def python_export_scatter_layer(layer, *args):
         script += "keep &= ~np.isnan(colors)\n"
         script += "colors = plt.cm.{0}((colors - cmap_vmin) / (cmap_vmax - cmap_vmin))\n\n".format(layer.state.cmap.name)
 
-    if layer.state.size_mode == 'Linear':
+    if layer.state.size_mode == 'Linear' and x_available and y_available:
 
         script += "# Set up size values\n"
         script += "sizes = layer_data['{0}']\n".format(layer.state.size_att.label)
@@ -73,7 +87,7 @@ def python_export_scatter_layer(layer, *args):
         script += "keep &= ~np.isnan(sizes)\n"
         script += "sizes = 30 * (np.clip((sizes - size_vmin) / (size_vmax - size_vmin), 0, 1) * 0.95 + 0.05) * {0}\n\n".format(layer.state.size_scaling)
 
-    if layer.state.markers_visible:
+    if layer.state.markers_visible and x_available and y_available:
         if layer.state.density_map:
 
             imports += ["from mpl_scatter_density import ScatterDensityArtist"]
@@ -150,7 +164,7 @@ def python_export_scatter_layer(layer, *args):
 
                 script += "layer_handles.append(scatter_artist)\n\n"
 
-    if layer.state.vector_visible:
+    if layer.state.vector_visible and x_available and y_available:
 
         if layer.state.vx_att is not None and layer.state.vy_att is not None:
 
@@ -194,7 +208,7 @@ def python_export_scatter_layer(layer, *args):
         script += "vector_artist = ax.quiver(x[keep], y[keep], vx, vy, {0})\n".format(serialize_options(options))
         script += "layer_handles.append(vector_artist)\n\n"
 
-    if layer.state.xerr_visible or layer.state.yerr_visible:
+    if (layer.state.xerr_visible or layer.state.yerr_visible) and x_available and y_available:
 
         if layer.state.xerr_visible and layer.state.xerr_att is not None:
             xerr = code("xerr[keep]")
@@ -220,7 +234,7 @@ def python_export_scatter_layer(layer, *args):
         script += "error_artist = ax.errorbar(x[keep], y[keep], {0})\n".format(serialize_options(options))
         script += "layer_handles.append(error_artist)\n\n"
 
-    if layer.state.line_visible:
+    if layer.state.line_visible and x_available and y_available:
 
         options = dict(color=layer.state.color,
                        linewidth=layer.state.linewidth,
@@ -234,6 +248,26 @@ def python_export_scatter_layer(layer, *args):
             imports.append("from glue.viewers.scatter.layer_artist import plot_colored_line")
             script += "line_collection = plot_colored_line(ax, x, y, {0})\n".format(serialize_options(options))
             script += "layer_handles.append(line_collection)\n\n"
+
+    for direction, available in (('v', x_available), ('h', y_available)):
+
+        if not getattr(layer.state, direction + 'line_visible') or not available:
+            continue
+
+        options = dict(colors=layer.state.color,
+                       linewidth=layer.state.linewidth,
+                       linestyle=layer.state.linestyle,
+                       alpha=layer.state.alpha,
+                       zorder=layer.state.zorder)
+
+        if direction == 'v':
+            options['transform'] = code('ax.get_xaxis_transform()')
+            script += "vline_artist = ax.vlines(x, 0, 1, {0})\n".format(serialize_options(options))
+            script += "layer_handles.append(vline_artist)\n\n"
+        else:
+            options['transform'] = code('ax.get_yaxis_transform()')
+            script += "hline_artist = ax.hlines(y, 0, 1, {0})\n".format(serialize_options(options))
+            script += "layer_handles.append(hline_artist)\n\n"
 
     script += "legend_handles.append(tuple(layer_handles))\n"
     script += "legend_labels.append(layer_data.label)\n\n"

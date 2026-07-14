@@ -264,6 +264,11 @@ class ScatterLayerState(MatplotlibLayerState, StretchStateMixin):
     vector_origin = DDSCProperty(default_index=1, docstring="Whether to place the vector so that the origin is at the tail, middle, or tip")
     vector_scaling = DDCProperty(1, docstring="The relative scaling of the arrow length")
 
+    # Vertical and horizontal lines
+
+    vline_visible = DDCProperty(False, docstring="Whether to show full-height vertical lines at each x position")
+    hline_visible = DDCProperty(False, docstring="Whether to show full-width horizontal lines at each y position")
+
     def __init__(self, viewer_state=None, layer=None, **kwargs):
 
         super(ScatterLayerState, self).__init__(viewer_state=viewer_state, layer=layer)

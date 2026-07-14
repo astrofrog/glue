@@ -39,7 +39,22 @@ LIMIT_PROPERTIES = set(['x_min', 'x_max', 'y_min', 'y_max'])
 DATA_PROPERTIES = set(['layer', 'x_att', 'y_att', 'cmap_mode', 'size_mode', 'density_map',
                        'xerr_att', 'yerr_att', 'xerr_visible', 'yerr_visible',
                        'vector_visible', 'vx_att', 'vy_att', 'vector_arrowhead', 'vector_mode',
-                       'vector_origin', 'line_visible', 'markers_visible', 'vector_scaling'])
+                       'vector_origin', 'line_visible', 'markers_visible', 'vector_scaling',
+                       'vline_visible', 'hline_visible'])
+
+
+def values_to_segments(values, horizontal=False):
+    """
+    Construct segments for a `~matplotlib.collections.LineCollection` with one
+    full-height vertical (or full-width horizontal) line per value, where the
+    direction along the lines is in axes fraction coordinates (0 to 1).
+    """
+    segments = np.zeros((len(values), 2, 2))
+    along, across = (0, 1) if horizontal else (1, 0)
+    segments[:, 0, across] = values
+    segments[:, 1, across] = values
+    segments[:, 1, along] = 1
+    return segments
 
 
 def ravel_artists(errorbar_artist):
@@ -162,6 +177,22 @@ class ScatterLayerArtist(MatplotlibLayerArtist):
         # See also https://github.com/matplotlib/matplotlib/issues/13799
         self._errorbar_keep = None
 
+        self._line_mode_auto_checked = False
+
+    def _auto_enable_line_mode(self, x, y):
+        # If, the first time the data are accessed, only one of the two
+        # attributes can be resolved, the only meaningful way to show the layer
+        # is as vertical or horizontal lines, so we enable the relevant mode.
+        # This is done only once so that users can subsequently turn the lines
+        # off without them coming back on every update.
+        if self._line_mode_auto_checked:
+            return
+        self._line_mode_auto_checked = True
+        if x is None and not self.state.hline_visible:
+            self.state.hline_visible = True
+        elif y is None and not self.state.vline_visible:
+            self.state.vline_visible = True
+
     def _set_axes(self, axes):
         self.axes = axes
         self.scatter_artist = self.axes.scatter([], [])
@@ -170,6 +201,15 @@ class ScatterLayerArtist(MatplotlibLayerArtist):
         self.vector_artist = None
         self.line_collection = ColoredLineCollection([], [])
         self.axes.add_collection(self.line_collection)
+        # The vertical/horizontal line collections use blended transforms so
+        # that the lines always span the full height/width of the axes
+        # regardless of the limits along the other direction.
+        self.vline_collection = LineCollection(np.zeros((0, 2, 2)),
+                                               transform=self.axes.get_xaxis_transform())
+        self.axes.add_collection(self.vline_collection)
+        self.hline_collection = LineCollection(np.zeros((0, 2, 2)),
+                                               transform=self.axes.get_yaxis_transform())
+        self.axes.add_collection(self.hline_collection)
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", message='All-NaN slice encountered')
             self.density_artist = GenericDensityArtist(self.axes, color='white',
@@ -181,7 +221,8 @@ class ScatterLayerArtist(MatplotlibLayerArtist):
         self.axes.add_artist(self.density_artist)
         self.mpl_artists = [self.scatter_artist, self.plot_artist,
                             self.errorbar_artist, self.vector_artist,
-                            self.line_collection, self.density_artist]
+                            self.line_collection, self.vline_collection,
+                            self.hline_collection, self.density_artist]
 
     def compute_density_map(self, *args, **kwargs):
         try:
@@ -201,30 +242,36 @@ class ScatterLayerArtist(MatplotlibLayerArtist):
         if len(self.mpl_artists) == 0:
             return
 
-        try:
-            if not self.state.density_map:
+        x = y = None
+
+        if not self.state.density_map:
+
+            try:
                 x = ensure_numerical(self.layer[self._viewer_state.x_att].ravel())
                 if x.dtype.kind == 'M':
                     x = datetime64_to_mpl(x)
+            except (IncompatibleAttribute, IndexError):
+                pass
 
-        except (IncompatibleAttribute, IndexError):
-            # The following includes a call to self.clear()
-            self.disable_invalid_attributes(self._viewer_state.x_att)
-            return
-        else:
-            self.enable()
-
-        try:
-            if not self.state.density_map:
+            try:
                 y = ensure_numerical(self.layer[self._viewer_state.y_att].ravel())
                 if y.dtype.kind == 'M':
                     y = datetime64_to_mpl(y)
-        except (IncompatibleAttribute, IndexError):
-            # The following includes a call to self.clear()
-            self.disable_invalid_attributes(self._viewer_state.y_att)
-            return
-        else:
-            self.enable()
+            except (IncompatibleAttribute, IndexError):
+                pass
+
+            # If only one of the two attributes can be resolved for the layer,
+            # we can still show the values as vertical or horizontal lines, so
+            # we only disable the layer if neither attribute can be resolved.
+            if x is None and y is None:
+                # The following includes a call to self.clear()
+                self.disable_invalid_attributes(self._viewer_state.x_att,
+                                                self._viewer_state.y_att)
+                return
+            else:
+                self.enable()
+
+            self._auto_enable_line_mode(x, y)
 
         if self.state.markers_visible:
 
@@ -233,6 +280,9 @@ class ScatterLayerArtist(MatplotlibLayerArtist):
                 # ability of the density artist to call a custom histogram
                 # method which is defined on this class and does the data
                 # access.
+                self.plot_artist.set_data([], [])
+                self.scatter_artist.set_offsets(np.zeros((0, 2)))
+            elif x is None or y is None:
                 self.plot_artist.set_data([], [])
                 self.scatter_artist.set_offsets(np.zeros((0, 2)))
             else:
@@ -264,7 +314,7 @@ class ScatterLayerArtist(MatplotlibLayerArtist):
             self.plot_artist.set_data([], [])
             self.scatter_artist.set_offsets(np.zeros((0, 2)))
 
-        if self.state.line_visible:
+        if self.state.line_visible and x is not None and y is not None:
             if self.state.cmap_mode == 'Fixed':
                 self.line_collection.set_points(x, y, oversample=False)
             else:
@@ -279,6 +329,16 @@ class ScatterLayerArtist(MatplotlibLayerArtist):
         else:
             self.line_collection.set_points([], [])
 
+        if self.state.vline_visible and x is not None:
+            self.vline_collection.set_segments(values_to_segments(x))
+        else:
+            self.vline_collection.set_segments(np.zeros((0, 2, 2)))
+
+        if self.state.hline_visible and y is not None:
+            self.hline_collection.set_segments(values_to_segments(y, horizontal=True))
+        else:
+            self.hline_collection.set_segments(np.zeros((0, 2, 2)))
+
         for eartist in ravel_artists(self.errorbar_artist):
             try:
                 eartist.remove()
@@ -289,7 +349,7 @@ class ScatterLayerArtist(MatplotlibLayerArtist):
             self.vector_artist.remove()
             self.vector_artist = None
 
-        if self.state.vector_visible:
+        if self.state.vector_visible and x is not None and y is not None:
 
             if self.state.vx_att is not None and self.state.vy_att is not None:
 
@@ -324,7 +384,7 @@ class ScatterLayerArtist(MatplotlibLayerArtist):
                                                   )
             self.mpl_artists[self.vector_index] = self.vector_artist
 
-        if self.state.xerr_visible or self.state.yerr_visible:
+        if (self.state.xerr_visible or self.state.yerr_visible) and x is not None and y is not None:
 
             keep = ~np.isnan(x) & ~np.isnan(y)
 
@@ -461,6 +521,26 @@ class ScatterLayerArtist(MatplotlibLayerArtist):
             if force or 'linestyle' in changed:
                 self.line_collection.set_linestyle(self.state.linestyle)
 
+        for collection, lines_visible in ((self.vline_collection, self.state.vline_visible),
+                                          (self.hline_collection, self.state.hline_visible)):
+
+            if lines_visible:
+
+                if self.state.cmap_mode == 'Fixed':
+                    if force or 'color' in changed or 'cmap_mode' in changed:
+                        collection.set_array(None)
+                        collection.set_color(self.state.color)
+                elif force or any(prop in changed for prop in CMAP_PROPERTIES):
+                    c = ensure_numerical(self.layer[self.state.cmap_att].ravel())
+                    collection.set_color(None)
+                    set_mpl_artist_cmap(collection, c, self.state)
+
+                if force or 'linewidth' in changed:
+                    collection.set_linewidth(self.state.linewidth)
+
+                if force or 'linestyle' in changed:
+                    collection.set_linestyle(self.state.linestyle)
+
         if self.state.vector_visible and self.vector_artist is not None:
 
             if self.state.cmap_mode == 'Fixed':
@@ -495,6 +575,7 @@ class ScatterLayerArtist(MatplotlibLayerArtist):
 
         for artist in [self.scatter_artist, self.plot_artist,
                        self.vector_artist, self.line_collection,
+                       self.vline_collection, self.hline_collection,
                        self.density_artist]:
 
             if artist is None:
@@ -581,6 +662,12 @@ class ScatterLayerArtist(MatplotlibLayerArtist):
 
             if self.state.line_visible:
                 handles.append(self.line_collection)
+
+            if self.state.vline_visible:
+                handles.append(self.vline_collection)
+
+            if self.state.hline_visible:
+                handles.append(self.hline_collection)
 
             if self.state.vector_visible:
                 handles.append(self.vector_artist)
