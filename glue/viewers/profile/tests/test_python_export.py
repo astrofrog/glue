@@ -85,3 +85,16 @@ class TestExportPython(BaseTestExportPython):
     def test_profile_att(self, tmpdir):
         self.viewer.layers[0].state.attribute = self.data.id['y']
         self.assert_same(tmpdir)
+
+    def test_vline(self, tmpdir):
+        self.viewer.state.layers[0].vline_visible = True
+        self.assert_same(tmpdir)
+
+    def test_vline_only_layer(self, tmpdir):
+        from glue.core.link_helpers import LinkSame
+        lines = Data(position=[1.5, 2.5], label='lines')
+        self.data_collection.append(lines)
+        self.data_collection.add_link(LinkSame(lines.id['position'],
+                                               self.data.pixel_component_ids[0]))
+        self.viewer.add_data(lines)
+        self.assert_same(tmpdir)

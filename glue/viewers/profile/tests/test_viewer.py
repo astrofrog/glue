@@ -198,3 +198,100 @@ def test_indexed_data():
     viewer.add_data(data_2d)
 
     assert viewer.state.x_att is data_2d.world_component_ids[0]
+
+
+def test_vertical_lines():
+
+    # A layer for which no profile can be computed but for which the positions
+    # along the x axis can be resolved via links should be shown as full-height
+    # vertical lines rather than being disabled.
+
+    from glue.core.link_helpers import LinkSame
+
+    spectrum = Data(flux=np.random.random(50), label='spectrum')
+    lines = Data(position=[10., 20., 30.], label='lines')
+
+    app = Application()
+    app.data_collection.append(spectrum)
+    app.data_collection.append(lines)
+
+    viewer = app.new_data_viewer(SimpleProfileViewer)
+    viewer.add_data(spectrum)
+    viewer.add_data(lines)
+    artist = viewer.layers[1]
+
+    # Without any links the layer cannot be shown at all
+    assert not artist.enabled
+    assert not artist.state.vline_visible
+
+    # Linking the line positions to the x attribute should enable the layer
+    # and automatically turn on the vertical line mode
+    app.data_collection.add_link(LinkSame(lines.id['position'], spectrum.pixel_component_ids[0]))
+    artist.update()
+
+    assert artist.enabled
+    assert artist.state.vline_visible
+
+    segments = artist.vline_collection.get_segments()
+    assert len(segments) == 3
+    assert_allclose(segments[0], [[10, 0], [10, 1]])
+
+    # The lines span the full height of the axes independently of the y limits
+    assert artist.vline_collection.get_transform() is artist.axes.get_xaxis_transform()
+
+    # The vertical line mode is only enabled automatically once, so it should
+    # stay off if turned off explicitly
+    artist.state.vline_visible = False
+    assert len(artist.vline_collection.get_segments()) == 0
+    artist.update()
+    assert not artist.state.vline_visible
+
+
+def test_vertical_lines_subset():
+
+    # Subsets of a line list should be shown as the matching subset of lines
+
+    from glue.core.link_helpers import LinkSame
+
+    spectrum = Data(flux=np.random.random(50), label='spectrum')
+    lines = Data(position=[10., 20., 30.], label='lines')
+
+    app = Application()
+    app.data_collection.append(spectrum)
+    app.data_collection.append(lines)
+    app.data_collection.add_link(LinkSame(lines.id['position'], spectrum.pixel_component_ids[0]))
+
+    viewer = app.new_data_viewer(SimpleProfileViewer)
+    viewer.add_data(spectrum)
+    viewer.add_data(lines)
+
+    app.data_collection.new_subset_group(label='high', subset_state=lines.id['position'] > 15)
+
+    subset_artist = viewer.layers[-1]
+    assert subset_artist.enabled
+    assert subset_artist.state.vline_visible
+    assert len(subset_artist.vline_collection.get_segments()) == 2
+
+
+def test_vertical_lines_normal_layer():
+
+    # The vertical line mode can also be enabled manually on a layer that has
+    # a normal profile, in which case a line is drawn at each unique position
+
+    data = Data(flux=np.random.random(10), label='spectrum')
+
+    app = Application()
+    app.data_collection.append(data)
+
+    viewer = app.new_data_viewer(SimpleProfileViewer)
+    viewer.add_data(data)
+    artist = viewer.layers[0]
+
+    assert artist.enabled
+    assert not artist.state.vline_visible
+
+    artist.state.vline_visible = True
+    assert len(artist.vline_collection.get_segments()) == 10
+
+    artist.state.vline_visible = False
+    assert len(artist.vline_collection.get_segments()) == 0

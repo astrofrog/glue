@@ -10,7 +10,7 @@ from glue.viewers.matplotlib.state import (MatplotlibDataViewerState,
                                            DeferredDrawCallbackProperty as DDCProperty,
                                            DeferredDrawSelectionCallbackProperty as DDSCProperty)
 from glue.core.data_combo_helper import ManualDataComboHelper, ComponentIDComboHelper
-from glue.utils import defer_draw, avoid_circular
+from glue.utils import defer_draw, avoid_circular, ensure_numerical
 from glue.core.link_manager import is_convertible_to_single_pixel_cid
 from glue.core.exceptions import IncompatibleDataException
 from glue.core.message import SubsetUpdateMessage
@@ -356,6 +356,9 @@ class ProfileLayerState(MatplotlibLayerState, HubListener):
 
     as_steps = DDCProperty(True, docstring='Whether to display the profile as steps')
 
+    vline_visible = DDCProperty(False, docstring='Whether to show full-height vertical '
+                                                 'lines at each position along the x axis')
+
     _viewer_callbacks_set = False
     _layer_subset_updates_subscribed = False
     _profile_cache = None
@@ -498,3 +501,15 @@ class ProfileLayerState(MatplotlibLayerState, HubListener):
             if self._profile_cache is not None and len(self._profile_cache[1]) > 0:
                 self.v_min = np.nanmin(self._profile_cache[1])
                 self.v_max = np.nanmax(self._profile_cache[1])
+
+    def compute_line_positions(self):
+        """
+        The unique values of the viewer x attribute for the layer, converted
+        to the x display units, to be shown as full-height vertical lines.
+        """
+        values = ensure_numerical(self.layer[self.viewer_state.x_att].ravel())
+        converter = UnitConverter()
+        values = converter.to_unit(self.viewer_state.reference_data,
+                                   self.viewer_state.x_att, values,
+                                   self.viewer_state.x_display_unit)
+        return np.unique(values[~np.isnan(values)])

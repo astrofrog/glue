@@ -1,7 +1,10 @@
 import sys
 import warnings
 
+import numpy as np
+
 from matplotlib.lines import Line2D
+from matplotlib.collections import LineCollection
 
 
 from glue.core import BaseData
@@ -10,6 +13,19 @@ from glue.viewers.profile.state import ProfileLayerState
 from glue.viewers.matplotlib.layer_artist import MatplotlibLayerArtist
 from glue.core.exceptions import IncompatibleAttribute, IncompatibleDataException
 from glue.viewers.profile.python_export import python_export_profile_layer
+
+
+def values_to_segments(values):
+    """
+    Construct segments for a `~matplotlib.collections.LineCollection` with one
+    full-height vertical line per value, where the direction along the lines
+    is in axes fraction coordinates (0 to 1).
+    """
+    segments = np.zeros((len(values), 2, 2))
+    segments[:, 0, 0] = values
+    segments[:, 1, 0] = values
+    segments[:, 1, 1] = 1
+    return segments
 
 
 class ProfileLayerArtist(MatplotlibLayerArtist):
@@ -30,7 +46,40 @@ class ProfileLayerArtist(MatplotlibLayerArtist):
         drawstyle = 'steps-mid' if self.state.as_steps else 'default'
         self.plot_artist = self.axes.plot([1, 2, 3], [3, 4, 5], 'k-', drawstyle=drawstyle)[0]
 
-        self.mpl_artists = [self.plot_artist]
+        # The vertical line collection uses a blended transform so that the
+        # lines always span the full height of the axes regardless of the
+        # y limits.
+        self.vline_collection = LineCollection(np.zeros((0, 2, 2)),
+                                               transform=self.axes.get_xaxis_transform())
+        self.axes.add_collection(self.vline_collection)
+
+        self.mpl_artists = [self.plot_artist, self.vline_collection]
+
+        self._line_mode_auto_checked = False
+
+    def _auto_enable_line_mode(self):
+        # If, the first time the profile fails to compute, the position values
+        # can still be resolved, the only meaningful way to show the layer is
+        # as vertical lines, so we enable that mode. This is done only once so
+        # that users can subsequently turn the lines off without them coming
+        # back on every update.
+        if self._line_mode_auto_checked:
+            return
+        self._line_mode_auto_checked = True
+        if not self.state.vline_visible:
+            self.state.vline_visible = True
+
+    def _update_vlines(self):
+        positions = None
+        if self.state.vline_visible:
+            try:
+                positions = self.state.compute_line_positions()
+            except (IncompatibleAttribute, IndexError):
+                pass
+        if positions is None:
+            self.vline_collection.set_segments(np.zeros((0, 2, 2)))
+        else:
+            self.vline_collection.set_segments(values_to_segments(positions))
 
     @defer_draw
     def _calculate_profile(self, reset=False):
@@ -89,12 +138,29 @@ class ProfileLayerArtist(MatplotlibLayerArtist):
             # passing an empty list to plot_artist
             self.plot_artist.set_data([0.], [0.])
 
+        self._update_vlines()
+
         self.redraw()
 
     @defer_draw
     def _calculate_profile_error(self, exc):
         self.plot_artist.set_visible(False)
         self.notify_end_computation()
+        if issubclass(exc[0], (IncompatibleAttribute, IncompatibleDataException)):
+            # Even if the profile itself cannot be computed, the layer can
+            # still be shown as vertical lines if the position values along
+            # the x axis can be resolved.
+            try:
+                positions = self.state.compute_line_positions()
+            except (IncompatibleAttribute, IndexError):
+                positions = None
+            if positions is not None:
+                self.plot_artist.set_data([0.], [0.])
+                self.enable()
+                self._auto_enable_line_mode()
+                self._update_vlines()
+                self.redraw()
+                return
         self.redraw()
         if issubclass(exc[0], IncompatibleAttribute):
             if isinstance(self.state.layer, BaseData):
@@ -116,7 +182,8 @@ class ProfileLayerArtist(MatplotlibLayerArtist):
             mpl_artist.set_color(self.state.color)
             mpl_artist.set_alpha(self.state.alpha)
             mpl_artist.set_linewidth(self.state.linewidth)
-            mpl_artist.set_drawstyle('steps-mid' if self.state.as_steps else 'default')
+
+        self.plot_artist.set_drawstyle('steps-mid' if self.state.as_steps else 'default')
 
         self.redraw()
 
@@ -132,7 +199,8 @@ class ProfileLayerArtist(MatplotlibLayerArtist):
         changed = self.pop_changed_properties()
 
         if force or any(prop in changed for prop in ('layer', 'x_att', 'attribute', 'function', 'normalize',
-                                                     'v_min', 'v_max', 'visible', 'x_display_unit', 'y_display_unit')):
+                                                     'v_min', 'v_max', 'visible', 'x_display_unit', 'y_display_unit',
+                                                     'vline_visible')):
             self._calculate_profile(reset=force)
             force = True
 
