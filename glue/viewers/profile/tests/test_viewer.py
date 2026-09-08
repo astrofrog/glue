@@ -222,15 +222,17 @@ def test_vertical_lines():
 
     # Without any links the layer cannot be shown at all
     assert not artist.enabled
-    assert not artist.state.vline_visible
+    assert artist.state.display_mode == 'Profile'
 
     # Linking the line positions to the x attribute should enable the layer
-    # and automatically turn on the vertical line mode
+    # and automatically switch to the vertical line mode
     app.data_collection.add_link(LinkSame(lines.id['position'], spectrum.pixel_component_ids[0]))
     artist.update()
 
     assert artist.enabled
-    assert artist.state.vline_visible
+    assert artist.state.display_mode == 'Vertical lines'
+    assert artist.vline_collection.get_visible()
+    assert not artist.plot_artist.get_visible()
 
     segments = artist.vline_collection.get_segments()
     assert len(segments) == 3
@@ -239,12 +241,13 @@ def test_vertical_lines():
     # The lines span the full height of the axes independently of the y limits
     assert artist.vline_collection.get_transform() is artist.axes.get_xaxis_transform()
 
-    # The vertical line mode is only enabled automatically once, so it should
-    # stay off if turned off explicitly
-    artist.state.vline_visible = False
-    assert len(artist.vline_collection.get_segments()) == 0
+    # The display mode is only switched automatically once, so it should stay
+    # on the profile mode if changed back explicitly (even though in this case
+    # the profile cannot be shown)
+    artist.state.display_mode = 'Profile'
     artist.update()
-    assert not artist.state.vline_visible
+    assert artist.state.display_mode == 'Profile'
+    assert not artist.enabled
 
 
 def test_vertical_lines_subset():
@@ -269,14 +272,15 @@ def test_vertical_lines_subset():
 
     subset_artist = viewer.layers[-1]
     assert subset_artist.enabled
-    assert subset_artist.state.vline_visible
+    assert subset_artist.state.display_mode == 'Vertical lines'
     assert len(subset_artist.vline_collection.get_segments()) == 2
 
 
 def test_vertical_lines_normal_layer():
 
-    # The vertical line mode can also be enabled manually on a layer that has
+    # The vertical line mode can also be selected manually on a layer that has
     # a normal profile, in which case a line is drawn at each unique position
+    # and the profile is hidden
 
     data = Data(flux=np.random.random(10), label='spectrum')
 
@@ -288,10 +292,15 @@ def test_vertical_lines_normal_layer():
     artist = viewer.layers[0]
 
     assert artist.enabled
-    assert not artist.state.vline_visible
+    assert artist.state.display_mode == 'Profile'
+    assert artist.plot_artist.get_visible()
+    assert not artist.vline_collection.get_visible()
 
-    artist.state.vline_visible = True
+    artist.state.display_mode = 'Vertical lines'
     assert len(artist.vline_collection.get_segments()) == 10
+    assert artist.vline_collection.get_visible()
+    assert not artist.plot_artist.get_visible()
 
-    artist.state.vline_visible = False
-    assert len(artist.vline_collection.get_segments()) == 0
+    artist.state.display_mode = 'Profile'
+    assert artist.plot_artist.get_visible()
+    assert not artist.vline_collection.get_visible()

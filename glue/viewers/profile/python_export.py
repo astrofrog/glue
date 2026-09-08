@@ -7,17 +7,10 @@ def python_export_profile_layer(layer, *args):
     if len(layer.mpl_artists) == 0 or not layer.enabled or not layer.visible:
         return [], None
 
-    try:
-        layer.state.profile
-    except Exception:
-        profile_available = False
-    else:
-        profile_available = True
-
     script = ""
     imports = ["import numpy as np"]
 
-    if layer.state.vline_visible:
+    if layer.state.display_mode == 'Vertical lines':
 
         options = dict(colors=layer.state.color,
                        linewidth=layer.state.linewidth,
@@ -29,16 +22,10 @@ def python_export_profile_layer(layer, *args):
         script += "positions = np.unique(layer_data['{0}'])\n".format(layer._viewer_state.x_att.label)
         script += "positions = positions[~np.isnan(positions)]\n"
         script += "vline_artist = ax.vlines(positions, 0, 1, {0})\n".format(serialize_options(options))
-        if not profile_available:
-            script += "legend_handles.append(vline_artist)\n"
-            script += "legend_labels.append(layer_data.label)\n"
-        script += "\n"
+        script += "legend_handles.append(vline_artist)\n"
+        script += "legend_labels.append(layer_data.label)\n"
 
-    if not profile_available:
-        if script:
-            return imports, script.strip()
-        else:
-            return [], None
+        return imports, script.strip()
 
     script += "# Calculate the profile of the data\n"
     script += "profile_axis = {0}\n".format(layer._viewer_state.x_att_pixel.axis)

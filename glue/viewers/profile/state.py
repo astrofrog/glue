@@ -356,8 +356,10 @@ class ProfileLayerState(MatplotlibLayerState, HubListener):
 
     as_steps = DDCProperty(True, docstring='Whether to display the profile as steps')
 
-    vline_visible = DDCProperty(False, docstring='Whether to show full-height vertical '
-                                                 'lines at each position along the x axis')
+    display_mode = DDSCProperty(default_index=0, docstring='Whether to display the layer '
+                                                           'as a collapsed profile or as '
+                                                           'full-height vertical lines at '
+                                                           'each position along the x axis')
 
     _viewer_callbacks_set = False
     _layer_subset_updates_subscribed = False
@@ -376,6 +378,8 @@ class ProfileLayerState(MatplotlibLayerState, HubListener):
                               95: '95%',
                               90: '90%',
                               'Custom': 'Custom'}
+
+        ProfileLayerState.display_mode.set_choices(self, ['Profile', 'Vertical lines'])
 
         ProfileLayerState.percentile.set_choices(self, [100, 99.5, 99, 95, 90, 'Custom'])
         ProfileLayerState.percentile.set_display_func(self, percentile_display.get)

@@ -55,34 +55,40 @@ class ProfileLayerArtist(MatplotlibLayerArtist):
 
         self.mpl_artists = [self.plot_artist, self.vline_collection]
 
-        self._line_mode_auto_checked = False
+        self._display_mode_auto_checked = False
 
-    def _auto_enable_line_mode(self):
+    def _auto_switch_display_mode(self):
         # If, the first time the profile fails to compute, the position values
         # can still be resolved, the only meaningful way to show the layer is
-        # as vertical lines, so we enable that mode. This is done only once so
-        # that users can subsequently turn the lines off without them coming
-        # back on every update.
-        if self._line_mode_auto_checked:
-            return
-        self._line_mode_auto_checked = True
-        if not self.state.vline_visible:
-            self.state.vline_visible = True
+        # as vertical lines, so we switch to that mode. This is done only once
+        # so that users can subsequently change the mode without it being
+        # overridden on every update.
+        if self._display_mode_auto_checked:
+            return False
+        self._display_mode_auto_checked = True
+        if self.state.display_mode != 'Vertical lines':
+            self.state.display_mode = 'Vertical lines'
+            return True
+        return False
 
-    def _update_vlines(self):
-        positions = None
-        if self.state.vline_visible:
-            try:
-                positions = self.state.compute_line_positions()
-            except (IncompatibleAttribute, IndexError):
-                pass
-        if positions is None:
+    @defer_draw
+    def _update_positions(self):
+        try:
+            positions = self.state.compute_line_positions()
+        except (IncompatibleAttribute, IndexError):
             self.vline_collection.set_segments(np.zeros((0, 2, 2)))
-        else:
-            self.vline_collection.set_segments(values_to_segments(positions))
+            self.redraw()
+            self.disable_invalid_attributes(self._viewer_state.x_att)
+            return
+        self.enable()
+        self.vline_collection.set_segments(values_to_segments(positions))
+        self.redraw()
 
     @defer_draw
     def _calculate_profile(self, reset=False):
+        if self.state.display_mode == 'Vertical lines':
+            self._update_positions()
+            return
         try:
             self.notify_start_computation()
             self._calculate_profile_thread(reset=reset)
@@ -138,8 +144,6 @@ class ProfileLayerArtist(MatplotlibLayerArtist):
             # passing an empty list to plot_artist
             self.plot_artist.set_data([0.], [0.])
 
-        self._update_vlines()
-
         self.redraw()
 
     @defer_draw
@@ -149,18 +153,16 @@ class ProfileLayerArtist(MatplotlibLayerArtist):
         if issubclass(exc[0], (IncompatibleAttribute, IncompatibleDataException)):
             # Even if the profile itself cannot be computed, the layer can
             # still be shown as vertical lines if the position values along
-            # the x axis can be resolved.
+            # the x axis can be resolved, so switch mode (once) if so.
             try:
-                positions = self.state.compute_line_positions()
+                self.state.compute_line_positions()
             except (IncompatibleAttribute, IndexError):
-                positions = None
-            if positions is not None:
-                self.plot_artist.set_data([0.], [0.])
-                self.enable()
-                self._auto_enable_line_mode()
-                self._update_vlines()
-                self.redraw()
-                return
+                pass
+            else:
+                if self._auto_switch_display_mode():
+                    # Changing the display mode retriggers an update, which
+                    # will render the positions.
+                    return
         self.redraw()
         if issubclass(exc[0], IncompatibleAttribute):
             if isinstance(self.state.layer, BaseData):
@@ -177,11 +179,16 @@ class ProfileLayerArtist(MatplotlibLayerArtist):
             return
 
         for mpl_artist in self.mpl_artists:
-            mpl_artist.set_visible(self.state.visible)
             mpl_artist.set_zorder(self.state.zorder)
             mpl_artist.set_color(self.state.color)
             mpl_artist.set_alpha(self.state.alpha)
             mpl_artist.set_linewidth(self.state.linewidth)
+
+        # The profile and the vertical lines are alternative representations
+        # of the layer, so only one of the two is ever visible.
+        vline_mode = self.state.display_mode == 'Vertical lines'
+        self.plot_artist.set_visible(self.state.visible and not vline_mode)
+        self.vline_collection.set_visible(self.state.visible and vline_mode)
 
         self.plot_artist.set_drawstyle('steps-mid' if self.state.as_steps else 'default')
 
@@ -190,8 +197,8 @@ class ProfileLayerArtist(MatplotlibLayerArtist):
     def _update_profile(self, force=False, **kwargs):
 
         if (self._viewer_state.x_att is None or
-                self.state.attribute is None or
-                self.state.layer is None):
+                self.state.layer is None or
+                (self.state.attribute is None and self.state.display_mode != 'Vertical lines')):
             return
 
         # NOTE: we need to evaluate this even if force=True so that the cache
@@ -200,11 +207,12 @@ class ProfileLayerArtist(MatplotlibLayerArtist):
 
         if force or any(prop in changed for prop in ('layer', 'x_att', 'attribute', 'function', 'normalize',
                                                      'v_min', 'v_max', 'visible', 'x_display_unit', 'y_display_unit',
-                                                     'vline_visible')):
+                                                     'display_mode')):
             self._calculate_profile(reset=force)
             force = True
 
-        if force or any(prop in changed for prop in ('alpha', 'color', 'zorder', 'linewidth', 'as_steps')):
+        if force or any(prop in changed for prop in ('alpha', 'color', 'zorder', 'linewidth', 'as_steps',
+                                                     'display_mode')):
             self._update_visual_attributes()
 
     @defer_draw

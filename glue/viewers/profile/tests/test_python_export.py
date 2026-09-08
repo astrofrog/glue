@@ -87,7 +87,7 @@ class TestExportPython(BaseTestExportPython):
         self.assert_same(tmpdir)
 
     def test_vline(self, tmpdir):
-        self.viewer.state.layers[0].vline_visible = True
+        self.viewer.state.layers[0].display_mode = 'Vertical lines'
         self.assert_same(tmpdir)
 
     def test_vline_only_layer(self, tmpdir):
