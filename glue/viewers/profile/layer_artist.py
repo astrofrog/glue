@@ -55,22 +55,6 @@ class ProfileLayerArtist(MatplotlibLayerArtist):
 
         self.mpl_artists = [self.plot_artist, self.vline_collection]
 
-        self._display_mode_auto_checked = False
-
-    def _auto_switch_display_mode(self):
-        # If, the first time the profile fails to compute, the position values
-        # can still be resolved, the only meaningful way to show the layer is
-        # as vertical lines, so we switch to that mode. This is done only once
-        # so that users can subsequently change the mode without it being
-        # overridden on every update.
-        if self._display_mode_auto_checked:
-            return False
-        self._display_mode_auto_checked = True
-        if self.state.display_mode != 'Vertical lines':
-            self.state.display_mode = 'Vertical lines'
-            return True
-        return False
-
     @defer_draw
     def _update_positions(self):
         try:
@@ -151,18 +135,22 @@ class ProfileLayerArtist(MatplotlibLayerArtist):
         self.plot_artist.set_visible(False)
         self.notify_end_computation()
         if issubclass(exc[0], (IncompatibleAttribute, IncompatibleDataException)):
-            # Even if the profile itself cannot be computed, the layer can
-            # still be shown as vertical lines if the position values along
-            # the x axis can be resolved, so switch mode (once) if so.
+            # If the profile cannot be computed but the position values along
+            # the x axis can be resolved, the only way to show the layer is as
+            # vertical lines, so we switch to that mode rather than disabling
+            # the layer (which would also hide the layer options, making it
+            # impossible to switch mode). Disabling only happens if neither
+            # the profile nor the positions are available.
             try:
                 self.state.compute_line_positions()
             except (IncompatibleAttribute, IndexError):
                 pass
             else:
-                if self._auto_switch_display_mode():
+                if self.state.display_mode != 'Vertical lines':
                     # Changing the display mode retriggers an update, which
                     # will render the positions.
-                    return
+                    self.state.display_mode = 'Vertical lines'
+                return
         self.redraw()
         if issubclass(exc[0], IncompatibleAttribute):
             if isinstance(self.state.layer, BaseData):
