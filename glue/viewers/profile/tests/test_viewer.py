@@ -310,3 +310,52 @@ def test_vertical_lines_normal_layer():
     artist.state.display_mode = 'Profile'
     assert artist.plot_artist.get_visible()
     assert not artist.vline_collection.get_visible()
+
+
+def test_vertical_lines_unit_conversion():
+
+    # The vertical line positions should follow the x display units
+
+    from glue.core.link_helpers import LinkSame
+
+    previous_converter = settings.UNIT_CONVERTER
+    settings.UNIT_CONVERTER = 'test-spectral2'
+
+    try:
+
+        wcs = WCS(naxis=1)
+        wcs.wcs.ctype = ['FREQ']
+        wcs.wcs.crval = [1]
+        wcs.wcs.cdelt = [1]
+        wcs.wcs.crpix = [1]
+        wcs.wcs.cunit = ['GHz']
+
+        # World coordinate values are in SI units (Hz), so the line
+        # positions need to be too
+        spectrum = Data(flux=np.random.random(10), label='spectrum', coords=wcs)
+        lines = Data(position=[1.e9, 2.e9, 3.e9], label='lines')
+
+        app = Application()
+        app.data_collection.append(spectrum)
+        app.data_collection.append(lines)
+        app.data_collection.add_link(LinkSame(lines.id['position'], spectrum.world_component_ids[0]))
+
+        viewer = app.new_data_viewer(SimpleProfileViewer)
+        viewer.add_data(spectrum)
+        viewer.state.x_att = spectrum.world_component_ids[0]
+        viewer.add_data(lines)
+        artist = viewer.layers[1]
+
+        assert artist.enabled
+        assert artist.state.display_mode == 'Vertical lines'
+
+        segments = artist.vline_collection.get_segments()
+        assert_allclose([s[0][0] for s in segments], [1.e9, 2.e9, 3.e9])
+
+        viewer.state.x_display_unit = 'GHz'
+
+        segments = artist.vline_collection.get_segments()
+        assert_allclose([s[0][0] for s in segments], [1, 2, 3])
+
+    finally:
+        settings.UNIT_CONVERTER = previous_converter

@@ -62,7 +62,10 @@ class ProfileLayerArtist(MatplotlibLayerArtist):
         except (IncompatibleAttribute, IndexError):
             self.vline_collection.set_segments(np.zeros((0, 2, 2)))
             self.redraw()
-            self.disable_invalid_attributes(self._viewer_state.x_att)
+            if isinstance(self.state.layer, BaseData):
+                self.disable_invalid_attributes(self._viewer_state.x_att)
+            else:
+                self.disable_incompatible_subset()
             return
         self.enable()
         self.vline_collection.set_segments(values_to_segments(positions))
