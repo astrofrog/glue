@@ -134,23 +134,6 @@ class ProfileLayerArtist(MatplotlibLayerArtist):
     def _calculate_profile_error(self, exc):
         self.plot_artist.set_visible(False)
         self.notify_end_computation()
-        if issubclass(exc[0], (IncompatibleAttribute, IncompatibleDataException)):
-            # If the profile cannot be computed but the position values along
-            # the x axis can be resolved, the only way to show the layer is as
-            # vertical lines, so we switch to that mode rather than disabling
-            # the layer (which would also hide the layer options, making it
-            # impossible to switch mode). Disabling only happens if neither
-            # the profile nor the positions are available.
-            try:
-                self.state.compute_line_positions()
-            except (IncompatibleAttribute, IndexError):
-                pass
-            else:
-                if self.state.display_mode != 'Vertical lines':
-                    # Changing the display mode retriggers an update, which
-                    # will render the positions.
-                    self.state.display_mode = 'Vertical lines'
-                return
         self.redraw()
         if issubclass(exc[0], IncompatibleAttribute):
             if isinstance(self.state.layer, BaseData):
@@ -183,6 +166,11 @@ class ProfileLayerArtist(MatplotlibLayerArtist):
         self.redraw()
 
     def _update_profile(self, force=False, **kwargs):
+
+        # Remove the profile mode from the choices if no profile can be
+        # computed for the layer. If the current mode is no longer offered,
+        # this also changes the mode, which retriggers this method.
+        self.state.update_display_mode_choices()
 
         if (self._viewer_state.x_att is None or
                 self.state.layer is None or

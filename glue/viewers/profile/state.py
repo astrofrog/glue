@@ -506,6 +506,26 @@ class ProfileLayerState(MatplotlibLayerState, HubListener):
                 self.v_min = np.nanmin(self._profile_cache[1])
                 self.v_max = np.nanmax(self._profile_cache[1])
 
+    def update_display_mode_choices(self):
+        """
+        Only offer the profile display mode if the profile can in principle
+        be computed for the layer, that is if the viewer x axis can be
+        related to a single pixel axis of the layer. This does not depend on
+        the selected attribute, so if the profile mode is not offered, no
+        attribute selection could have made it work.
+        """
+        if (self.viewer_state is None or self.viewer_state.x_att_pixel is None
+                or self.layer is None):
+            return
+        if is_convertible_to_single_pixel_cid(self.layer, self.viewer_state.x_att_pixel) is None:
+            choices = ['Vertical lines']
+        else:
+            choices = ['Profile', 'Vertical lines']
+        if ProfileLayerState.display_mode.get_choices(self) != choices:
+            # If the current mode is no longer offered, this also switches
+            # the selection to the first remaining choice.
+            ProfileLayerState.display_mode.set_choices(self, choices)
+
     def compute_line_positions(self):
         """
         The unique values of the viewer x attribute for the layer, converted

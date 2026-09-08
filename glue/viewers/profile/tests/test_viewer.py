@@ -1,6 +1,8 @@
 from astropy import units as u
 from astropy.wcs import WCS
 
+import pytest
+
 import numpy as np
 from numpy.testing import assert_equal, assert_allclose
 
@@ -220,12 +222,14 @@ def test_vertical_lines():
     viewer.add_data(lines)
     artist = viewer.layers[1]
 
-    # Without any links the layer cannot be shown at all
+    # Without any links the layer cannot be shown at all, and since no
+    # profile can be computed only the vertical line mode is offered
     assert not artist.enabled
-    assert artist.state.display_mode == 'Profile'
+    assert artist.state.display_mode == 'Vertical lines'
+    assert type(artist.state).display_mode.get_choices(artist.state) == ['Vertical lines']
 
-    # Linking the line positions to the x attribute should enable the layer
-    # and automatically switch to the vertical line mode
+    # Linking the line positions to the x attribute should enable the layer,
+    # still showing vertical lines
     app.data_collection.add_link(LinkSame(lines.id['position'], spectrum.pixel_component_ids[0]))
     artist.update()
 
@@ -241,14 +245,14 @@ def test_vertical_lines():
     # The lines span the full height of the axes independently of the y limits
     assert artist.vline_collection.get_transform() is artist.axes.get_xaxis_transform()
 
-    # Selecting the profile mode explicitly is not possible for this layer
-    # since no profile can be computed, so the mode snaps back to vertical
-    # lines and the layer stays enabled (disabling it would also hide the
-    # layer options, making it impossible to change the mode back)
-    artist.state.display_mode = 'Profile'
+    # The profile mode is not offered for this layer since no profile can
+    # be computed (whatever the attribute selection), so it also cannot be
+    # selected programmatically
+    assert type(artist.state).display_mode.get_choices(artist.state) == ['Vertical lines']
+    with pytest.raises(ValueError):
+        artist.state.display_mode = 'Profile'
     assert artist.state.display_mode == 'Vertical lines'
     assert artist.enabled
-    assert len(artist.vline_collection.get_segments()) == 3
 
 
 def test_vertical_lines_subset():
@@ -294,6 +298,7 @@ def test_vertical_lines_normal_layer():
 
     assert artist.enabled
     assert artist.state.display_mode == 'Profile'
+    assert type(artist.state).display_mode.get_choices(artist.state) == ['Profile', 'Vertical lines']
     assert artist.plot_artist.get_visible()
     assert not artist.vline_collection.get_visible()
 
