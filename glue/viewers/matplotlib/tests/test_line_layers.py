@@ -219,7 +219,7 @@ def test_state_round_trip():
 
     state2 = clone(artist.state)
     assert state2.linewidth == 4
-    assert state2.linestyle == 'dotted' 
+    assert state2.linestyle == 'dotted'
 
 
 def test_many_lines():
